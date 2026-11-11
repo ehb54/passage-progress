@@ -13,7 +13,11 @@
   window.chrome = {
     runtime: {
       id: 'stub',
-      sendMessage: (m) => (window.__ppLog.push(m), Promise.resolve()),
+      // set window.__ppZoom = { factor, base } before load to fake page zoom
+      sendMessage: (m) =>
+        m && m.type === 'get-zoom'
+          ? Promise.resolve(window.__ppZoom || null)
+          : (window.__ppLog.push(m), Promise.resolve()),
       onMessage: { addListener: (f) => L.msg.push(f), removeListener() {} },
     },
     storage: {

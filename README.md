@@ -7,7 +7,11 @@ A small Chrome extension for reading long web pages in a group. It shows:
   your progress through just that stretch, with dashed START/END lines on the page.
 
 The numbers appear in a small draggable meter in the corner of the page, in a thin
-bar along the top edge, and on the toolbar icon's badge (grey = page, green = passage).
+bar along the top edge, on the toolbar icon's badge (grey = page, green = passage), and
+at the top of the page's right-click menu (e.g. **Passage 63% · Page 41%**).
+
+The meter stays the same size when you zoom the page (⌘+ / Ctrl+), so zooming in to make
+the text bigger doesn't make the meter cover more of it.
 
 ## Install (one time)
 
@@ -33,7 +37,7 @@ To read local `file://` pages too, open the extension's **Details** and turn on
 
 | To… | Do this |
 | --- | --- |
-| Mark the passage start | Right-click the first line → **Passage Progress → Set passage START here** |
+| Mark the passage start | Right-click the first line → **Passage … · Page …% → Set passage START here** |
 | Mark the passage end | Right-click the last line → **Set passage END here** |
 | …or with the meter | Hover the meter → **Set start** / **Set end**, then click the line (Esc cancels) |
 | …or with the keyboard | ⌥⇧S / ⌥⇧E (Alt+Shift+S / E), then click the line |

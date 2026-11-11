@@ -49,7 +49,8 @@
 
   const S = {
     show: false, // set from storage at startup
-    pos: null, // { right, bottom } of the pill, px
+    pos: null, // { right, bottom } of the pill, in px at normal (unzoomed) size
+    k: 1, // default zoom / page zoom: shrinks the overlay back to normal size
     key: pageKey(),
     saved: { start: null, end: null }, // serialized anchors (what we store)
     live: { start: null, end: null }, // resolved anchors (DOM references)
@@ -386,31 +387,38 @@
   * { box-sizing: border-box; }
   .hidden { display: none !important; }
 
-  .mark { position: fixed; height: 0; border-top: 2px dashed; pointer-events: none; display: none; }
+  /* --k (set on the host) undoes page zoom so the overlay keeps a constant
+     on-screen size: 1 at normal zoom, 0.5 when the page is zoomed to 200%. */
+
+  .mark { position: fixed; height: 0; border-top: calc(2px * var(--k, 1)) dashed; pointer-events: none; display: none; }
   .mark.start { border-color: #16a34a; }
   .mark.end { border-color: #dc2626; }
   .mark span {
     position: absolute; right: 0; padding: 3px 6px; border-radius: 4px; white-space: nowrap;
     font: 700 10px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    letter-spacing: .05em; color: #fff;
+    letter-spacing: .05em; color: #fff; transform: scale(var(--k, 1));
   }
-  .mark.start span { background: #16a34a; bottom: 2px; }
-  .mark.end span { background: #dc2626; top: 0; }
+  .mark.start span { background: #16a34a; bottom: calc(2px * var(--k, 1)); transform-origin: right bottom; }
+  .mark.end span { background: #dc2626; top: 0; transform-origin: right top; }
 
-  .guide { position: fixed; left: 0; right: 0; height: 0; border-top: 2px solid #16a34a; pointer-events: none; display: none; }
+  .guide { position: fixed; left: 0; right: 0; height: 0; border-top: calc(2px * var(--k, 1)) solid #16a34a; pointer-events: none; display: none; }
   .guide.end { border-color: #dc2626; }
   .guide span {
-    position: absolute; right: 12px; bottom: 3px; padding: 4px 7px; border-radius: 4px; white-space: nowrap;
+    position: absolute; right: calc(12px * var(--k, 1)); bottom: calc(3px * var(--k, 1));
+    padding: 4px 7px; border-radius: 4px; white-space: nowrap;
     font: 700 11px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; background: #16a34a;
+    transform: scale(var(--k, 1)); transform-origin: right bottom;
   }
   .guide.end span { background: #dc2626; }
 
-  .topbar { position: fixed; top: 0; left: 0; right: 0; height: 3px; pointer-events: none; }
+  .topbar { position: fixed; top: 0; left: 0; right: 0; height: calc(3px * var(--k, 1)); pointer-events: none; }
   .topbar i { display: block; height: 100%; width: 0; background: #60a5fa; }
-  .topbar.pass i { background: #22c55e; }
+  .topbar.on-pass i { background: #22c55e; }
 
   .pill {
-    position: fixed; right: 16px; bottom: 16px; min-width: 172px; max-width: 300px;
+    position: fixed; right: calc(16px * var(--k, 1)); bottom: calc(16px * var(--k, 1));
+    transform: scale(var(--k, 1)); transform-origin: right bottom;
+    min-width: 172px; max-width: 300px;
     padding: 9px 12px 10px; border-radius: 12px;
     background: rgba(17, 24, 39, .9); color: #f9fafb;
     font: 500 12px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -424,11 +432,11 @@
   .pct { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
   .bar { grid-column: 1 / -1; height: 5px; margin-top: 5px; border-radius: 3px; background: rgba(255, 255, 255, .14); overflow: hidden; }
   .bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: #60a5fa; }
-  .pass .bar i { background: #4ade80; }
+  .row.pass .bar i { background: #4ade80; }
   .sub { grid-column: 1 / -1; margin-top: 4px; font-size: 11px; color: #9ca3af; white-space: nowrap; }
   .sub:empty { display: none; }
-  .pass { display: none; }
-  .has-pass .pass { display: grid; }
+  .row.pass { display: none; }
+  .has-pass .row.pass { display: grid; }
   .has-pass .page { margin-top: 8px; }
   .has-pass .page .pct { font-size: 13px; font-weight: 600; color: #d1d5db; }
   .has-pass .page .bar, .has-pass .page .sub { display: none; }
@@ -503,9 +511,26 @@
       pill.style.right = pill.style.bottom = '';
       return;
     }
-    const r = pill.getBoundingClientRect();
-    pill.style.right = clamp(S.pos.right, 0, Math.max(0, innerWidth - r.width)) + 'px';
-    pill.style.bottom = clamp(S.pos.bottom, 0, Math.max(0, innerHeight - r.height)) + 'px';
+    const r = pill.getBoundingClientRect(); // already scaled by --k
+    pill.style.right = clamp(S.pos.right * S.k, 0, Math.max(0, innerWidth - r.width)) + 'px';
+    pill.style.bottom = clamp(S.pos.bottom * S.k, 0, Math.max(0, innerHeight - r.height)) + 'px';
+  }
+
+  // Page zoom: keep the overlay the same size on screen at any zoom level.
+  function setZoom(z) {
+    if (!z || !(z.factor > 0)) return;
+    const k = (z.base || 1) / z.factor;
+    if (Math.abs(k - S.k) < 1e-6) return;
+    S.k = k;
+    host.style.setProperty('--k', String(k));
+    applyPos();
+    schedule();
+  }
+
+  function requestZoom() {
+    try {
+      chrome.runtime.sendMessage({ type: 'get-zoom' }).then(setZoom, () => {});
+    } catch (_) {}
   }
 
   function placeMark(mk, y, live, m) {
@@ -541,7 +566,7 @@
     setText(els.gsub, toGo(pageLeft) || 'end of page');
 
     pill.classList.toggle('has-pass', !!pass);
-    els.topbar.classList.toggle('pass', !!pass);
+    els.topbar.classList.toggle('on-pass', !!pass);
     let main = page;
     if (pass) {
       main = pass.p;
@@ -562,12 +587,15 @@
     }
     els.tbar.style.width = main * 100 + '%';
 
-    const badge = pct(main) + '%' + (pass ? '|p' : '');
+    // Feeds the toolbar badge and the right-click menu readout.
+    const pagePct = pct(page);
+    const passPct = pass ? pct(pass.p) : null;
+    const badge = pagePct + '|' + passPct;
     if (badge !== S.badge) {
       S.badge = badge;
       try {
         chrome.runtime
-          .sendMessage({ type: 'badge', text: pct(main) + '%', passage: !!pass })
+          .sendMessage({ type: 'badge', text: pct(main) + '%', passage: !!pass, page: pagePct, pass: passPct })
           .catch(() => {});
       } catch (_) {}
     }
@@ -587,7 +615,10 @@
     if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 4) return;
     drag.moved = true;
     pill.classList.add('dragging');
-    S.pos = { right: innerWidth - (e.clientX - drag.dx), bottom: innerHeight - (e.clientY - drag.dy) };
+    S.pos = {
+      right: (innerWidth - (e.clientX - drag.dx)) / S.k,
+      bottom: (innerHeight - (e.clientY - drag.dy)) / S.k,
+    };
     applyPos();
   });
   const endDrag = () => {
@@ -713,6 +744,11 @@
     if (msg.type === 'mark-context' && S.ctx) setMark(msg.which, S.ctx[msg.which]);
     else if (msg.type === 'pick') startPick(msg.which);
     else if (msg.type === 'clear') clearMarks();
+    else if (msg.type === 'zoom') setZoom(msg);
+    else if (msg.type === 'refresh') {
+      S.badge = ''; // re-report progress (tab switched to)
+      schedule();
+    }
   }
 
   function onStorage(ch, area) {
@@ -743,6 +779,7 @@
   const onPageShow = (e) => {
     if (e.persisted) {
       S.badge = '';
+      requestZoom();
       schedule();
     }
   };
@@ -800,6 +837,8 @@
 
   const api = { alive, teardown };
   window.__passageProgress = api;
+
+  requestZoom();
 
   chrome.storage.local
     .get(['showMeter', 'pillPos', S.key])
