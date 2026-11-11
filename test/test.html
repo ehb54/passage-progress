@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passage Progress test page</title>
+<style>
+  body { font: 17px/1.6 Georgia, serif; max-width: 680px; margin: 0 auto; padding: 24px 16px 200px; color: #222; background: #fdfcf8; }
+  h2 { font-family: system-ui, sans-serif; margin-top: 2em; }
+  img.fake { display: block; width: 100%; height: 0; background: #ddd; transition: none; }
+</style>
+</head>
+<body>
+<h1>Sample reading</h1>
+<p id="intro">A long, generated page for testing the extension. Sections and paragraphs are numbered so marks can be checked.</p>
+<div id="content"></div>
+<script>
+  const words = 'the study group reads each passage aloud and then pauses to discuss what the author meant by the argument before moving on to the next section of the chapter while someone keeps notes'.split(' ');
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const sentence = () => {
+    const n = 8 + Math.floor(rnd() * 14);
+    const w = Array.from({ length: n }, () => words[Math.floor(rnd() * words.length)]);
+    w[0] = w[0][0].toUpperCase() + w[0].slice(1);
+    return w.join(' ') + '.';
+  };
+  const c = document.getElementById('content');
+  for (let s = 1; s <= 8; s++) {
+    const h = document.createElement('h2');
+    h.textContent = 'Section ' + s;
+    c.appendChild(h);
+    for (let p = 1; p <= 6; p++) {
+      const el = document.createElement('p');
+      el.id = 'p' + s + '-' + p;
+      el.textContent = '[' + s + '.' + p + '] ' + Array.from({ length: 4 + Math.floor(rnd() * 4) }, sentence).join(' ');
+      c.appendChild(el);
+    }
+    // a "lazy image" that grows later, to check marks survive reflow
+    const img = document.createElement('div');
+    img.className = 'fake';
+    img.id = 'img' + s;
+    c.appendChild(img);
+  }
+</script>
+<script src="chrome-stub.js"></script>
+<script src="../content.js"></script>
+</body>
+</html>

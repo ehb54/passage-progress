@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inner scroller test</title>
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; font: 16px/1.6 system-ui, sans-serif; }
+  header { height: 56px; background: #1e3a8a; color: #fff; display: flex; align-items: center; padding: 0 16px; }
+  .layout { display: flex; height: calc(100% - 56px); }
+  nav { width: 180px; background: #eef; overflow: auto; }
+  main { flex: 1; overflow: auto; padding: 16px 24px; }
+</style>
+</head>
+<body>
+<header>App-style page (content scrolls inside &lt;main&gt;)</header>
+<div class="layout">
+  <nav><p style="padding: 8px">Sidebar</p></nav>
+  <main id="main"></main>
+</div>
+<script>
+  const m = document.getElementById('main');
+  for (let i = 1; i <= 60; i++) {
+    const p = document.createElement('p');
+    p.id = 'q' + i;
+    p.textContent = '[' + i + '] Inner-scroller paragraph. ' + 'Reading together works best when everyone can see how much is left. '.repeat(3);
+    m.appendChild(p);
+  }
+</script>
+<script src="chrome-stub.js"></script>
+<script src="../content.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Passage Progress",
+  "version": "1.0.0",
+  "description": "Shows how far through a page you are, plus your progress through a start/end passage you mark.",
+  "permissions": ["storage", "contextMenus", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Passage Progress: click to show/hide the on-page meter",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-meter": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Show/hide the on-page meter"
+    },
+    "pick-start": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Set passage start (then click on the page)"
+    },
+    "pick-end": {
+      "suggested_key": { "default": "Alt+Shift+E" },
+      "description": "Set passage end (then click on the page)"
+    }
+  }
+}
