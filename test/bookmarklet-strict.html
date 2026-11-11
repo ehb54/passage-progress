@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Mimics strict sites: Trusted Types enforced (no innerHTML from scripts) and
+     no inline <style> allowed. The bookmarklet build must still work. -->
+<meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script'; style-src 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookmarklet strict-site test</title>
+</head>
+<body>
+<h1>Strict-site test page</h1>
+<div id="content"></div>
+<script>
+  let tt = 'innerHTML allowed (Trusted Types NOT enforced)';
+  try { document.createElement('div').innerHTML = '<b>x</b>'; } catch (e) { tt = 'Trusted Types enforced: ' + e.name; }
+  window.__ttStatus = tt;
+  const c = document.getElementById('content');
+  for (let i = 1; i <= 80; i++) {
+    const p = document.createElement('p');
+    p.id = 'b' + i;
+    p.textContent = '[' + i + '] Strict page paragraph. ' + 'The group keeps reading even when the site is locked down. '.repeat(4);
+    c.appendChild(p);
+  }
+</script>
+<!-- the generated bookmarklet source, loaded as a page script exactly as a bookmarklet would run -->
+<script src="../docs/passage-progress-bookmarklet.js"></script>
+<script src="bookmarklet-strict-check.js"></script>
+</body>
+</html>

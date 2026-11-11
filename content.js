@@ -11,6 +11,7 @@
 
   const HOST_ID = 'passage-progress-host';
   const MAX_SAVED_PAGES = 500;
+  const MAX_STOPS = 30; // per page
 
   // A previous copy may still be in the page (e.g. the extension was reloaded
   // or updated). If it is still alive, keep it; if it is orphaned, replace it.
@@ -52,8 +53,10 @@
     pos: null, // { right, bottom } of the pill, in px at normal (unzoomed) size
     k: 1, // default zoom / page zoom: shrinks the overlay back to normal size
     key: pageKey(),
-    saved: { start: null, end: null }, // serialized anchors (what we store)
-    live: { start: null, end: null }, // resolved anchors (DOM references)
+    // serialized anchors (what we store); stops are dated "we stopped here"
+    // markers, oldest first, each an anchor plus a timestamp t
+    saved: { start: null, end: null, stops: [] },
+    live: { start: null, end: null, stops: [] }, // resolved anchors (DOM references)
     scroller: null,
     picking: null, // 'start' | 'end' | null
     ctx: null, // anchors captured at the last right-click
@@ -291,36 +294,56 @@
 
   function setMark(which, anchor) {
     if (!anchor) return;
+    if (which === 'stop') {
+      const stop = Object.assign({}, anchor, { t: Date.now() });
+      S.saved.stops = S.saved.stops.concat(stop).slice(-MAX_STOPS);
+      S.live.stops = S.live.stops.concat(resolve(stop)).slice(-MAX_STOPS);
+      save();
+      schedule();
+      return;
+    }
     S.saved[which] = anchor;
     S.live[which] = resolve(anchor);
     if (S.live.start && S.live.end) {
       const m = metrics();
       if (liveY(S.live.end, 'end', m) < liveY(S.live.start, 'start', m)) {
-        S.saved = { start: S.saved.end, end: S.saved.start };
-        S.live = { start: S.live.end, end: S.live.start };
+        S.saved = { ...S.saved, start: S.saved.end, end: S.saved.start };
+        S.live = { ...S.live, start: S.live.end, end: S.live.start };
       }
     }
     save();
     schedule();
   }
 
+  // Clears the passage start/end; dated stop markers are removed one by one.
   function clearMarks() {
-    S.saved = { start: null, end: null };
-    S.live = { start: null, end: null };
-    store.remove(S.key);
+    S.saved = { ...S.saved, start: null, end: null };
+    S.live = { ...S.live, start: null, end: null };
+    save();
+    schedule();
+  }
+
+  function deleteStop(t) {
+    const i = S.saved.stops.findIndex((s) => s.t === t);
+    if (i < 0) return;
+    S.saved.stops = S.saved.stops.filter((_, j) => j !== i);
+    S.live.stops = S.live.stops.filter((_, j) => j !== i);
+    save();
     schedule();
   }
 
   function applySaved(v) {
     v = v || {};
-    S.saved = { start: v.start || null, end: v.end || null };
-    S.live = { start: resolve(S.saved.start), end: resolve(S.saved.end) };
+    const stops = Array.isArray(v.stops) ? v.stops.filter((s) => s && s.t) : [];
+    S.saved = { start: v.start || null, end: v.end || null, stops };
+    S.live = { start: resolve(S.saved.start), end: resolve(S.saved.end), stops: stops.map(resolve) };
     schedule();
   }
 
   function save() {
-    if (!S.saved.start && !S.saved.end) return store.remove(S.key);
-    store.set({ [S.key]: { start: S.saved.start, end: S.saved.end, t: Date.now() } });
+    const { start, end, stops } = S.saved;
+    if (!start && !end && !stops.length) return store.remove(S.key);
+    store.set({ [S.key]: { start, end, stops, t: Date.now() } });
     prune();
   }
 
@@ -334,12 +357,33 @@
     } catch (_) {}
   }
 
-  function gotoStart() {
-    const m = metrics();
-    const ys = S.live.start ? liveY(S.live.start, 'start', m) : m.contentTop - m.scrollTop;
-    const delta = ys - m.top - 40; // leave room for the START label
+  function scrollToLine(y, m) {
+    const delta = y - m.top - 40; // leave room for the marker's label
     (m.doc ? window : m.el).scrollBy({ top: delta, behavior: 'smooth' });
   }
+
+  function gotoStart() {
+    const m = metrics();
+    scrollToLine(S.live.start ? liveY(S.live.start, 'start', m) : m.contentTop - m.scrollTop, m);
+  }
+
+  function resumeAtStop() {
+    const l = S.live.stops[S.live.stops.length - 1];
+    if (!l) return;
+    const m = metrics();
+    scrollToLine(liveY(l, 'start', m), m);
+  }
+
+  const fmtTime = (t) => {
+    const d = new Date(t);
+    try {
+      return d.toLocaleString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      });
+    } catch (_) {
+      return d.toLocaleString();
+    }
+  };
 
   // ------------------------------------------------------------- progress
 
@@ -376,13 +420,11 @@
 
   // ------------------------------------------------------------------- UI
 
-  const host = document.createElement('div');
-  host.id = HOST_ID;
-  host.style.cssText =
-    'all: initial; position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647;';
-  const root = host.attachShadow({ mode: 'open' });
-  root.innerHTML = `
-<style>
+  // Built with createElement rather than innerHTML, and styled with a
+  // constructed stylesheet where possible: as a bookmarklet this code runs as
+  // a page script, and sites using Trusted Types or a strict style-src CSP
+  // would reject innerHTML / an inline <style>.
+  const CSS = `
   :host { all: initial; }
   * { box-sizing: border-box; }
   .hidden { display: none !important; }
@@ -400,6 +442,18 @@
   }
   .mark.start span { background: #16a34a; bottom: calc(2px * var(--k, 1)); transform-origin: right bottom; }
   .mark.end span { background: #dc2626; top: 0; transform-origin: right top; }
+  .mark.stop { border-color: #d97706; }
+  .mark.stop.old { border-color: rgba(217, 119, 6, .45); }
+  .mark.stop span {
+    right: auto; left: 0; bottom: calc(2px * var(--k, 1)); transform-origin: left bottom;
+    background: #d97706; pointer-events: auto; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .mark.stop.old span { background: rgba(180, 100, 10, .75); }
+  .mark.stop span button {
+    padding: 0 3px; border-radius: 3px; background: transparent; color: #fff;
+    font: 700 12px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; opacity: .75;
+  }
+  .mark.stop span button:hover { opacity: 1; background: rgba(0, 0, 0, .2); }
 
   .guide { position: fixed; left: 0; right: 0; height: 0; border-top: calc(2px * var(--k, 1)) solid #16a34a; pointer-events: none; display: none; }
   .guide.end { border-color: #dc2626; }
@@ -410,6 +464,8 @@
     transform: scale(var(--k, 1)); transform-origin: right bottom;
   }
   .guide.end span { background: #dc2626; }
+  .guide.stop { border-color: #d97706; }
+  .guide.stop span { background: #d97706; }
 
   .topbar { position: fixed; top: 0; left: 0; right: 0; height: calc(3px * var(--k, 1)); pointer-events: none; }
   .topbar i { display: block; height: 100%; width: 0; background: #60a5fa; }
@@ -452,38 +508,69 @@
   button:focus-visible { outline: 2px solid #60a5fa; }
   button.on[data-act="start"] { background: #16a34a; color: #fff; }
   button.on[data-act="end"] { background: #dc2626; color: #fff; }
-  .needs-pass { display: none; }
-  .has-pass .needs-pass { display: inline-block; }
+  button.on[data-act="stop"] { background: #d97706; color: #fff; }
+  .needs-pass, .needs-stop { display: none; }
+  .has-pass .needs-pass, .has-stop .needs-stop { display: inline-block; }
+  .stopinfo { margin-top: 7px; font-size: 11px; color: #fbbf24; white-space: nowrap; }
+  .stopinfo:empty { display: none; }
   button[data-act="hide"] { margin-left: auto; }
   .hint { display: none; margin-top: 7px; font-size: 11px; color: #fde68a; }
   .picking .hint { display: block; }
-</style>
-<div id="ui" class="hidden">
-  <div class="mark start" id="mstart"><span>▼ START</span></div>
-  <div class="mark end" id="mend"><span>▲ END</span></div>
-  <div class="topbar" id="topbar"><i id="tbar"></i></div>
-  <div class="pill" id="pill">
-    <div class="row pass">
-      <span class="lbl">Passage</span><span class="pct" id="ppct">0%</span>
-      <div class="bar"><i id="pbar"></i></div>
-      <span class="sub" id="psub"></span>
-    </div>
-    <div class="row page">
-      <span class="lbl">Page</span><span class="pct" id="gpct">0%</span>
-      <div class="bar"><i id="gbar"></i></div>
-      <span class="sub" id="gsub"></span>
-    </div>
-    <div class="tools">
-      <button data-act="start" title="Then click the line where the passage starts">Set start</button>
-      <button data-act="end" title="Then click the line where the passage ends">Set end</button>
-      <button data-act="goto" class="needs-pass" title="Scroll to the passage start">Go to start</button>
-      <button data-act="clear" class="needs-pass" title="Remove the passage marks">Clear</button>
-      <button data-act="hide" title="Hide meter (click the toolbar icon to bring it back)">✕</button>
-    </div>
-    <div class="hint" id="hint"></div>
-  </div>
-</div>
-<div class="guide" id="guide"><span id="guidelbl"></span></div>`;
+`;
+
+  const IS_BOOKMARKLET = typeof PP_MODE !== 'undefined' && PP_MODE === 'bookmarklet';
+
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const k in attrs || {}) el.setAttribute(k, attrs[k]);
+    el.append(...kids);
+    return el;
+  }
+  const btn = (act, label, title, cls) =>
+    h('button', cls ? { 'data-act': act, title, class: cls } : { 'data-act': act, title }, label);
+  const row = (kind, label, p) =>
+    h('div', { class: 'row ' + kind },
+      h('span', { class: 'lbl' }, label),
+      h('span', { class: 'pct', id: p + 'pct' }, '0%'),
+      h('div', { class: 'bar' }, h('i', { id: p + 'bar' })),
+      h('span', { class: 'sub', id: p + 'sub' }));
+
+  const host = document.createElement('div');
+  host.id = HOST_ID;
+  host.style.cssText =
+    'all: initial; position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647;';
+  const root = host.attachShadow({ mode: 'open' });
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(CSS);
+    root.adoptedStyleSheets = [sheet];
+  } catch (_) {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    root.append(st);
+  }
+  root.append(
+    h('div', { id: 'ui', class: 'hidden' },
+      h('div', { class: 'mark start', id: 'mstart' }, h('span', {}, '▼ START')),
+      h('div', { class: 'mark end', id: 'mend' }, h('span', {}, '▲ END')),
+      h('div', { id: 'stops' }),
+      h('div', { class: 'topbar', id: 'topbar' }, h('i', { id: 'tbar' })),
+      h('div', { class: 'pill', id: 'pill' },
+        row('pass', 'Passage', 'p'),
+        row('page', 'Page', 'g'),
+        h('div', { class: 'stopinfo', id: 'ssub' }),
+        h('div', { class: 'tools' },
+          btn('start', 'Set start', 'Then click the line where the passage starts'),
+          btn('end', 'Set end', 'Then click the line where the passage ends'),
+          btn('stop', 'Stopped here', 'Then click the line where you stopped; it is saved with the date and time'),
+          btn('goto', 'Go to start', 'Scroll to the passage start', 'needs-pass'),
+          btn('resume', 'Resume', 'Scroll to where you last stopped', 'needs-stop'),
+          btn('clear', 'Clear', 'Remove the passage marks', 'needs-pass'),
+          btn('hide', '✕', IS_BOOKMARKLET
+            ? 'Hide meter (click the bookmark again to bring it back)'
+            : 'Hide meter (click the toolbar icon to bring it back)')),
+        h('div', { class: 'hint', id: 'hint' }))),
+    h('div', { class: 'guide', id: 'guide' }, h('span', { id: 'guidelbl' })));
 
   const $ = (id) => root.getElementById(id);
   const ui = $('ui');
@@ -493,7 +580,7 @@
     ppct: $('ppct'), pbar: $('pbar'), psub: $('psub'),
     gpct: $('gpct'), gbar: $('gbar'), gsub: $('gsub'),
     topbar: $('topbar'), tbar: $('tbar'), mstart: $('mstart'), mend: $('mend'),
-    hint: $('hint'), guidelbl: $('guidelbl'),
+    hint: $('hint'), guidelbl: $('guidelbl'), stops: $('stops'), ssub: $('ssub'),
   };
   document.documentElement.appendChild(host);
 
@@ -551,6 +638,26 @@
     mk.style.width = Math.max(40, R - L) + 'px';
   }
 
+  // Dated "stopped here" markers: newest drawn bold, older ones faded.
+  let stopsKey = '';
+  function renderStops(m) {
+    const stops = S.live.stops;
+    const key = stops.map((l) => l.a.t).join(',');
+    if (key !== stopsKey) {
+      stopsKey = key;
+      els.stops.replaceChildren(
+        ...stops.map((l, i) =>
+          h('div', { class: 'mark stop' + (i === stops.length - 1 ? '' : ' old') },
+            h('span', {},
+              '⏸ Stopped ' + fmtTime(l.a.t),
+              h('button', { 'data-act': 'del-stop', 'data-t': String(l.a.t), title: 'Remove this marker' }, '×'))))
+      );
+    }
+    stops.forEach((l, i) => placeMark(els.stops.children[i], liveY(l, 'start', m), l, m));
+    pill.classList.toggle('has-stop', stops.length > 0);
+    setText(els.ssub, stops.length ? '⏸ Last stopped ' + fmtTime(stops[stops.length - 1].a.t) : '');
+  }
+
   let raf = 0;
   function schedule() {
     if (!raf && !S.dead) raf = requestAnimationFrame(update);
@@ -585,6 +692,7 @@
     } else {
       els.mstart.style.display = els.mend.style.display = 'none';
     }
+    renderStops(m);
     els.tbar.style.width = main * 100 + '%';
 
     // Feeds the toolbar badge and the right-click menu readout.
@@ -641,8 +749,10 @@
     if (!b) return;
     e.stopPropagation();
     const act = b.dataset.act;
-    if (act === 'start' || act === 'end') S.picking === act ? stopPick() : startPick(act);
+    if (act === 'start' || act === 'end' || act === 'stop') S.picking === act ? stopPick() : startPick(act);
     else if (act === 'goto') gotoStart();
+    else if (act === 'resume') resumeAtStop();
+    else if (act === 'del-stop') deleteStop(Number(b.dataset.t));
     else if (act === 'clear') clearMarks();
     else if (act === 'hide') store.set({ showMeter: false });
   });
@@ -654,16 +764,24 @@
   let pickStyle = null;
   let gpos = null;
   let graf = 0;
+  // 'end' marks the bottom of the clicked line; 'start' and 'stop' its top.
+  const PICK = {
+    start: { hint: 'Click the line where the passage starts.', guide: 'Set START here' },
+    end: { hint: 'Click the line where the passage ends.', guide: 'Set END here' },
+    stop: { hint: 'Click the line where you stopped reading.', guide: 'Mark STOPPED here, with date' },
+  };
+  const edgeOf = (which) => (which === 'end' ? 'end' : 'start');
 
   function startPick(which) {
     if (S.picking) stopPick();
     S.picking = which;
     pill.classList.add('picking');
     for (const b of root.querySelectorAll('button[data-act]')) b.classList.toggle('on', b.dataset.act === which);
-    const word = which === 'start' ? 'START' : 'END';
-    setText(els.hint, `Click the line where the passage ${which === 'start' ? 'starts' : 'ends'}. Esc cancels.`);
-    setText(els.guidelbl, `Set ${word} here (Esc cancels)`);
+    const P = PICK[which];
+    setText(els.hint, P.hint + ' Esc cancels.');
+    setText(els.guidelbl, P.guide + ' (Esc cancels)');
     guide.classList.toggle('end', which === 'end');
+    guide.classList.toggle('stop', which === 'stop');
     pickStyle = document.createElement('style');
     pickStyle.textContent = 'html.__pp-picking, html.__pp-picking * { cursor: crosshair !important; }';
     (document.head || document.documentElement).appendChild(pickStyle);
@@ -694,7 +812,7 @@
     if (e.type === 'click' && e.button === 0) {
       const which = S.picking;
       stopPick();
-      setMark(which, makeAnchor(e.clientX, e.clientY, which));
+      setMark(which, makeAnchor(e.clientX, e.clientY, edgeOf(which)));
     }
   }
 
@@ -712,7 +830,7 @@
     graf = 0;
     if (!S.picking || !gpos) return;
     const L = lineAt(gpos.x, gpos.y);
-    const y = L ? (S.picking === 'start' ? L.rc.top : L.rc.bottom) : gpos.y;
+    const y = L ? (edgeOf(S.picking) === 'start' ? L.rc.top : L.rc.bottom) : gpos.y;
     guide.style.display = 'block';
     guide.style.top = y + 'px';
   }
@@ -741,7 +859,7 @@
 
   function onMessage(msg) {
     if (!msg) return;
-    if (msg.type === 'mark-context' && S.ctx) setMark(msg.which, S.ctx[msg.which]);
+    if (msg.type === 'mark-context' && S.ctx) setMark(msg.which, S.ctx[edgeOf(msg.which)]);
     else if (msg.type === 'pick') startPick(msg.which);
     else if (msg.type === 'clear') clearMarks();
     else if (msg.type === 'zoom') setZoom(msg);
@@ -767,7 +885,8 @@
       const v = mk.newValue || {};
       const same =
         JSON.stringify(v.start || null) === JSON.stringify(S.saved.start) &&
-        JSON.stringify(v.end || null) === JSON.stringify(S.saved.end);
+        JSON.stringify(v.end || null) === JSON.stringify(S.saved.end) &&
+        JSON.stringify(v.stops || []) === JSON.stringify(S.saved.stops);
       if (!same) applySaved(v); // same page open in another tab
     }
   }
@@ -796,14 +915,16 @@
       applySaved(null);
       chrome.storage.local.get(k).then((v) => k === S.key && applySaved(v[k])).catch(() => {});
     }
-    for (const w of ['start', 'end']) {
-      const l = S.live[w];
-      if (l && l.a.path && (!l.el || !l.el.isConnected) && l.tries < 30) {
-        const again = resolve(l.a);
-        again.tries = l.tries + 1;
-        S.live[w] = again;
-      }
-    }
+    // anchors whose element hasn't loaded yet, or was re-rendered: look again
+    const fix = (l) => {
+      if (!(l && l.a.path && (!l.el || !l.el.isConnected) && l.tries < 30)) return l;
+      const again = resolve(l.a);
+      again.tries = l.tries + 1;
+      return again;
+    };
+    S.live.start = fix(S.live.start);
+    S.live.end = fix(S.live.end);
+    S.live.stops = S.live.stops.map(fix);
     schedule();
   }
   const tickTimer = setInterval(tick, 1000);
@@ -835,7 +956,8 @@
     if (window.__passageProgress === api) delete window.__passageProgress;
   }
 
-  const api = { alive, teardown };
+  // toggle: used when the bookmarklet is clicked again on the same page
+  const api = { alive, teardown, toggle: () => store.set({ showMeter: !S.show }) };
   window.__passageProgress = api;
 
   requestZoom();

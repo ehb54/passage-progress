@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passage Progress</title>
+<meta name="description" content="See how far you are through a long web page, or through just the passage your group is reading.">
+<link rel="icon" href="icon128.png">
+<style>
+  :root {
+    --bg: #fbfaf7; --fg: #1d2127; --muted: #5d6570; --card: #ffffff; --line: #e7e3da;
+    --accent: #15803d; --accent-ink: #ffffff; --kbd: #f1eee7; --link: #1d4ed8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131519; --fg: #e7e8ea; --muted: #9aa2ad; --card: #1b1e24; --line: #2b2f37;
+      --accent: #22c55e; --accent-ink: #052e14; --kbd: #262a31; --link: #8ab4ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 16px 64px; }
+  a { color: var(--link); }
+  header { display: flex; align-items: center; gap: 14px; }
+  header img { width: 48px; height: 48px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0; letter-spacing: -0.01em; }
+  .lede { font-size: 18px; color: var(--muted); margin: 14px 0 32px; }
+  h2 { font-size: 19px; margin: 0 0 6px; }
+  .tag { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 22px 18px; margin: 0 0 18px; }
+  .card p { margin: 6px 0 12px; }
+  ol, ul { padding-left: 22px; margin: 8px 0 12px; }
+  li { margin: 6px 0; }
+  .note { font-size: 14px; color: var(--muted); }
+  kbd {
+    font: 600 13px/1 system-ui, sans-serif; background: var(--kbd); border: 1px solid var(--line);
+    border-bottom-width: 2px; border-radius: 5px; padding: 2px 6px;
+  }
+  .btn, .bm {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 650;
+    background: var(--accent); color: var(--accent-ink); border-radius: 10px; padding: 10px 16px;
+  }
+  .bm { cursor: grab; box-shadow: 0 2px 0 rgba(0,0,0,.15); margin: 4px 0; }
+  .bm:active { cursor: grabbing; }
+  .bm-wrap { margin: 10px 0 4px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .bm-hint { font-size: 14px; color: var(--muted); }
+  section.how { margin-top: 34px; }
+  footer { margin-top: 40px; font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon128.png" alt="">
+    <h1>Passage Progress</h1>
+  </header>
+  <p class="lede">See how far you are through a long web page, or through just the passage your group is reading.</p>
+
+  <div class="card">
+    <div class="tag">Option 1 · best</div>
+    <h2>Chrome extension</h2>
+<!--STORE-->
+    <p>One click to install, and it updates itself.</p>
+    <p><a class="btn" href="{{STORE_URL}}">Add to Chrome</a></p>
+<!--/STORE-->
+<!--NOSTORE-->
+    <p>Coming soon to the Chrome Web Store. Until then it can be
+      <a href="https://github.com/ehb54/passage-progress#install-one-time">installed from GitHub</a>
+      (uses Chrome's Developer mode).</p>
+<!--/NOSTORE-->
+    <ul>
+      <li>The meter appears on every page automatically.</li>
+      <li>Shows your % on the toolbar icon and at the top of the right-click menu.</li>
+      <li>Right-click a line to mark where the passage starts or ends, or where you stopped.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="tag">Option 2 · no install</div>
+    <h2>Bookmarklet</h2>
+    <p>A bookmark that adds the meter to the page you're on. Works in Chrome, Edge, Firefox and Safari.</p>
+    <ol>
+      <li>Show your bookmarks bar: <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>B</kbd> on a Mac, <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>B</kbd> on Windows.
+        In Safari: View → Show Favorites Bar.</li>
+      <li>Drag this button onto the bar:
+        <div class="bm-wrap">
+          <a class="bm" href="{{BOOKMARKLET_HREF}}" title="Drag me to your bookmarks bar">Passage Progress</a>
+          <span class="bm-hint">or click it to try it on this page</span>
+        </div>
+      </li>
+      <li>On the page you're reading, click the bookmark. Click it again to hide the meter.</li>
+    </ol>
+    <p class="note">After a page reload, click the bookmark again. Your marks are remembered for each page.
+      A few sites with strict security settings block bookmarklets. The extension works there.</p>
+  </div>
+
+  <section class="how">
+    <h2>Using it</h2>
+    <ul>
+      <li><b>Page %</b> shows how far you've scrolled, with roughly how many screens are left.</li>
+      <li><b>Mark the passage:</b> hover over the meter, click <b>Set start</b>, then click the first line of the passage.
+        Do the same with <b>Set end</b> on the last line. With the extension you can also right-click a line instead.</li>
+      <li><b>Passage %</b> is 0% when the start line is at the top of the window, and 100% when the end line reaches the bottom.</li>
+      <li><b>Go to start</b> jumps back to the passage, and <b>Clear</b> removes the start and end marks.</li>
+      <li><b>Didn't finish?</b> Click <b>Stopped here</b>, then click the line where you stopped. It leaves a marker
+        with the date and time, like “⏸ Stopped Tue, Nov 11, 3:40 PM”. Next time, <b>Resume</b> scrolls
+        straight back to it. Each meeting can leave its own marker. The newest is bold, older ones are faded, and
+        the × on a marker deletes it.</li>
+      <li>Drag the meter to move it, and double-click it to put it back in the corner. It stays the same size when you zoom in on the page.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Version {{VERSION}} ·
+    <a href="https://github.com/ehb54/passage-progress">Source on GitHub</a> ·
+    <a href="privacy.html">Privacy</a>: nothing you do with it leaves your browser.
+  </footer>
+</main>
+</body>
+</html>

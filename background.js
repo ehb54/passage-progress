@@ -8,6 +8,7 @@ const ROOT_TITLE = 'Passage Progress';
 const MENU = [
   { id: 'pp-start', title: 'Set passage START here' },
   { id: 'pp-end', title: 'Set passage END here' },
+  { id: 'pp-stop', title: 'Mark where we stopped (dated)' },
   { id: 'pp-sep', type: 'separator' },
   { id: 'pp-clear', title: 'Clear passage marks' },
   { id: 'pp-toggle', title: 'Show/hide progress meter' },
@@ -54,6 +55,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     case 'pp-end':
       send(tab.id, { type: 'mark-context', which: 'end' });
       break;
+    case 'pp-stop':
+      send(tab.id, { type: 'mark-context', which: 'stop' });
+      break;
     case 'pp-clear':
       send(tab.id, { type: 'clear' });
       break;
@@ -70,6 +74,7 @@ chrome.commands.onCommand.addListener((command, tab) => {
   if (!tab || tab.id == null) return;
   if (command === 'pick-start') send(tab.id, { type: 'pick', which: 'start' });
   if (command === 'pick-end') send(tab.id, { type: 'pick', which: 'end' });
+  if (command === 'pick-stop') send(tab.id, { type: 'pick', which: 'stop' });
 });
 
 // Page zoom (Cmd/Ctrl +/-). The content script uses this to keep the meter the

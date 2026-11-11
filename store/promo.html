@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Passage Progress promo tile</title>
+<!-- Source for the 440x280 small promo tile (store/make_images.py). -->
+<style>
+  html, body { margin: 0; width: 440px; height: 280px; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 140% at 0% 0%, #1f2a37 0%, #111827 60%, #0b1220 100%);
+    color: #f9fafb; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; justify-content: center; padding: 0 34px; box-sizing: border-box;
+  }
+  .top { display: flex; align-items: center; gap: 16px; }
+  img { width: 64px; height: 64px; }
+  h1 { font-size: 30px; line-height: 1.1; margin: 0; letter-spacing: -0.01em; }
+  p { margin: 18px 0 0; font-size: 17px; line-height: 1.4; color: #cbd5e1; }
+  .meter { margin-top: 20px; display: flex; gap: 10px; align-items: baseline; font-weight: 700; }
+  .meter .lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #9ca3af; font-weight: 600; }
+  .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; align-self: center; }
+  .bar i { display: block; width: 63%; height: 100%; background: #4ade80; border-radius: 3px; }
+  .pct { font-size: 20px; color: #fff; }
+</style>
+</head>
+<body>
+  <div class="top"><img src="../icons/icon128.png" alt=""><h1>Passage<br>Progress</h1></div>
+  <p>Know where your reading group is,<br>and pick up where you stopped.</p>
+  <div class="meter"><span class="lbl">Passage</span><div class="bar"><i></i></div><span class="pct">63%</span></div>
+</body>
+</html>

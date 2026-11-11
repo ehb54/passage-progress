@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading group: On Reading Slowly</title>
+<!-- Source page for the Chrome Web Store screenshots (store/make_images.py).
+     ?shot=1: passage start in view.  ?shot=2: stop markers + meter controls. -->
+<style>
+  body { margin: 0; background: #fbfaf6; color: #23262b; font: 19px/1.65 Georgia, "Times New Roman", serif; }
+  .site { background: #fff; border-bottom: 1px solid #e8e4da; padding: 14px 0; font: 600 15px/1 system-ui, sans-serif; color: #5b6370; }
+  .site div, article { max-width: 700px; margin: 0 auto; padding: 0 24px; }
+  h1 { font-size: 34px; line-height: 1.2; margin: 40px 0 6px; }
+  .byline { font: 14px/1.4 system-ui, sans-serif; color: #6b7280; margin-bottom: 28px; }
+  h2 { font: 700 21px/1.3 system-ui, sans-serif; margin: 38px 0 6px; }
+  p { margin: 0 0 18px; }
+</style>
+</head>
+<body>
+<div class="site"><div>Seminar Readings · Week 3</div></div>
+<article id="art">
+  <h1>On Reading Slowly</h1>
+  <div class="byline">A short essay for discussion · about 20 minutes aloud</div>
+</article>
+<script>
+  const text = [
+    ['h2', 'I. The pace of a page'],
+    ['p', 'Most of what we read on a screen is built to be skimmed. Headlines promise the gist, the scroll bar promises an ending, and the eye learns to hop from bold phrase to bold phrase. A long argument resists that habit. It asks to be followed, sentence by sentence, the way a path is followed rather than surveyed.'],
+    ['p', 'Reading slowly is not the same as reading inefficiently. When a group reads a passage aloud, each voice sets a pace that no single reader would choose, and the pauses between speakers become places to ask what was just said. The page stops being a container of information and becomes a shared space.'],
+    ['p', 'That shared space needs a little structure. Someone has to say where today\'s reading begins, where it ends, and how much of it is left. Without that, a group drifts: one person is already a screen ahead, another is still searching for the paragraph everyone else is discussing.'],
+    ['h2', 'II. Where we are'],
+    ['p', 'Printed books solved this long ago with page numbers. "Turn to page forty-two" puts everyone in the same place at once. Web pages have no such landmarks; a long article is one continuous column, and its length changes with the width of the window and the size of the type.'],
+    ['p', 'What remains is position: how far down the column the reader has travelled, and how far there is still to go. Expressed as a percentage, position becomes something a group can say out loud. "We are about halfway through the passage" is as clear as a page number, and it works on any screen.'],
+    ['p', 'Position also changes how a reader feels about a long text. A passage with a visible end is easier to begin. Knowing that there are three screens left, not thirty, makes it reasonable to slow down and read the difficult sentence twice.'],
+    ['h2', 'III. Stopping well'],
+    ['p', 'Few groups finish a long reading in a single meeting. The conversation wanders, a question takes twenty minutes to answer, the hour runs out. The question then is not whether to stop but how to stop well, so that next week begins where this week ended.'],
+    ['p', 'A good stopping point is marked deliberately. It records not only the place but the occasion: this is where we were on that evening, after that discussion. Over several weeks, a trail of such marks becomes a small history of the group\'s reading, a record of where the text slowed everyone down.'],
+    ['p', 'Returning to a marked place has its own value. Rereading the last few lines before continuing reminds everyone of the thread, and the first comment of the evening often picks up exactly where the last one left off.'],
+    ['h2', 'IV. Making room'],
+    ['p', 'Tools for reading should stay out of the way. A reader who enlarges the text to rest their eyes should not find the margins crowded by controls. The best aids are small, quiet, and there when someone asks, "How much is left?"'],
+    ['p', 'In the end, slow reading is a choice about attention. A group that agrees on where it is, where it is going, and where it stopped last time can give the text the kind of attention it was written for.'],
+    ['p', 'Questions for discussion: Which passage this week did you want to read twice? Where did the argument turn? What would you have asked the author if they had been in the room?'],
+  ];
+  let i = 0;
+  const art = document.getElementById('art');
+  for (const [tag, t] of text) {
+    const el = document.createElement(tag);
+    el.textContent = t;
+    if (tag === 'p') el.id = 'q' + (++i);
+    art.appendChild(el);
+  }
+
+  // Preload passage marks and two "stopped here" markers into the stub's storage.
+  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const anchor = (id, extra) => {
+    const el = document.getElementById(id);
+    return Object.assign({ path: '#' + id, snippet: norm(el.textContent), textIndex: 0, offset: 0, frac: 0, docFrac: 0 }, extra);
+  };
+  const last = document.getElementById('q' + i);
+  const endAnchor = anchor('q' + i, { offset: last.textContent.length - 1, frac: 1 });
+  const key = 'marks:' + location.href.split('#')[0];
+  const store = {
+    showMeter: true,
+    [key]: {
+      start: anchor('q1'),
+      end: endAnchor,
+      stops: [
+        anchor('q7', { offset: 0, t: new Date(2026, 9, 28, 20, 5).getTime() }),
+        anchor('q9', { offset: 0, t: new Date(2026, 10, 4, 19, 52).getTime() }),
+      ],
+      t: Date.now(),
+    },
+  };
+  sessionStorage.setItem('__ppStub', JSON.stringify(store));
+
+  const shot = new URLSearchParams(location.search).get('shot') || '1';
+  const y = (id) => document.getElementById(id).getBoundingClientRect().top + scrollY;
+  history.scrollRestoration = 'manual';
+  window.scrollTo(0, shot === '1' ? y('q1') - 330 : y('q7') - 170);
+</script>
+<script src="../test/chrome-stub.js"></script>
+<script src="../content.js"></script>
+<script>
+  // shot 2: show the meter's controls as if hovered
+  if ((new URLSearchParams(location.search).get('shot') || '1') === '2') {
+    const R = document.getElementById('passage-progress-host').shadowRoot;
+    const s = new CSSStyleSheet();
+    s.replaceSync('.tools { display: flex !important; }');
+    R.adoptedStyleSheets = [...R.adoptedStyleSheets, s];
+  }
+</script>
+<!-- headless --screenshot fires at the load event: hold it back so the meter has drawn -->
+<img src="/__delay?ms=1500" alt="" width="1" height="1" style="position:absolute;left:-9px">
+</body>
+</html>

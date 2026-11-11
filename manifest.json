@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Passage Progress",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shows how far through a page you are, plus your progress through a start/end passage you mark.",
   "permissions": ["storage", "contextMenus", "scripting"],
   "host_permissions": ["<all_urls>"],
@@ -39,6 +39,10 @@
     "pick-end": {
       "suggested_key": { "default": "Alt+Shift+E" },
       "description": "Set passage end (then click on the page)"
+    },
+    "pick-stop": {
+      "suggested_key": { "default": "Alt+Shift+X" },
+      "description": "Mark where you stopped, with date (then click on the page)"
     }
   }
 }

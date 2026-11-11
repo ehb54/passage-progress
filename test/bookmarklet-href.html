@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookmarklet link test</title>
+</head>
+<body>
+<!-- Takes the real bookmarklet link from the built install page (docs/index.html)
+     and clicks it, which runs it the way a bookmark click does: as a
+     percent-encoded javascript: URL. Run with tools/run_selftest.py. -->
+<div id="content"></div>
+<script>
+  for (let i = 1; i <= 60; i++) {
+    const p = document.createElement('p');
+    p.textContent = '[' + i + '] Bookmarklet link test paragraph. '.repeat(6);
+    document.getElementById('content').appendChild(p);
+  }
+  (async () => {
+    const out = [];
+    const ok = (name, cond, extra) => out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : ''));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const page = await (await fetch('../docs/index.html', { cache: 'no-store' })).text();
+    const doc = new DOMParser().parseFromString(page, 'text/html');
+    const link = doc.querySelector('a.bm');
+    const href = link && link.getAttribute('href');
+    ok('install page has a javascript: bookmarklet link', !!href && href.startsWith('javascript:'), href && href.length);
+    const a = document.createElement('a');
+    a.href = href;
+    document.body.appendChild(a);
+    a.click();
+    await sleep(500);
+    const host = document.getElementById('passage-progress-host');
+    ok('clicking the link adds the meter', !!host);
+    ok('meter is visible', host && !host.shadowRoot.getElementById('ui').classList.contains('hidden'));
+    ok('reports page %', host && /^\d+%$/.test(host.shadowRoot.getElementById('gpct').textContent), host && host.shadowRoot.getElementById('gpct').textContent);
+    a.click();
+    await sleep(300);
+    ok('clicking it again hides the meter', host && host.shadowRoot.getElementById('ui').classList.contains('hidden'));
+    ok('still only one meter', document.querySelectorAll('#passage-progress-host').length === 1);
+    fetch('/__selftest_result?r=' + encodeURIComponent(out.join('\n'))).catch(() => {});
+  })().catch((e) => fetch('/__selftest_result?r=' + encodeURIComponent('ERROR ' + e.stack)));
+</script>
+</body>
+</html>

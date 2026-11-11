@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passage Progress self-test</title>
+<style>
+  body { font: 17px/1.6 Georgia, serif; max-width: 680px; margin: 0 auto; padding: 24px 16px 200px; }
+</style>
+</head>
+<body>
+<!-- Automated checks for headless Chrome:
+       chrome --headless=new --virtual-time-budget=15000 --dump-dom http://127.0.0.1:8765/test/selftest.html
+     Results are written into the results block. Phase 2 reloads the page
+     (?phase=2) to check that marks persist. -->
+<pre id="results">running…</pre>
+<div id="content"></div>
+<script>
+  const c = document.getElementById('content');
+  for (let s = 1; s <= 6; s++) {
+    for (let p = 1; p <= 6; p++) {
+      const el = document.createElement('p');
+      el.id = 'p' + s + '-' + p;
+      el.textContent = '[' + s + '.' + p + '] ' + 'Paragraph text for the automated test; long enough to wrap over several lines in the column. '.repeat(4);
+      c.appendChild(el);
+    }
+  }
+</script>
+<script src="chrome-stub.js"></script>
+<script src="../content.js"></script>
+<script>
+(async () => {
+  const out = [];
+  const ok = (name, cond, extra) => { out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : '')); document.getElementById('results').textContent = 'phase ' + phase + ' (in progress)\n' + out.join('\n'); };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const phase = new URLSearchParams(location.search).get('phase') || '1';
+  const key = 'marks:' + new URL('selftest.html', location.href).href; // phase 1's page
+  await sleep(200);
+  const R = document.getElementById('passage-progress-host').shadowRoot;
+  const $ = (id) => R.getElementById(id);
+  const ctxMark = (id, which, edge) => {
+    const el = document.getElementById(id); el.scrollIntoView({ block: 'center' });
+    const r = el.getBoundingClientRect(); const y = edge === 'top' ? r.top + 4 : r.bottom - 4;
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, composed: true, clientX: r.left + 80, clientY: y, button: 2 }));
+    __ppSend({ type: 'mark-context', which });
+  };
+  const charTop = (id, off) => { const n = document.getElementById(id).firstChild; const rg = document.createRange(); rg.setStart(n, off); rg.setEnd(n, off + 1); return rg.getClientRects()[0].top; };
+
+  if (phase === '1') {
+    sessionStorage.clear();
+    ctxMark('p2-1', 'start', 'top');
+    ctxMark('p4-6', 'end', 'bottom');
+    // stop via the meter button then a click on the page
+    $('pill').querySelector('button[data-act=stop]').click();
+    ok('stop button enters pick mode', document.documentElement.classList.contains('__pp-picking'));
+    const p = document.getElementById('p3-2'); p.scrollIntoView({ block: 'center' }); await frame();
+    const r = p.getBoundingClientRect();
+    let pageGotClick = false; p.addEventListener('click', () => (pageGotClick = true), { once: true });
+    document.elementFromPoint(r.left + 60, r.top + 30).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, clientX: r.left + 60, clientY: r.top + 30, button: 0 }));
+    ok('pick click is not passed to the page', !pageGotClick);
+    await sleep(20);
+    ctxMark('p5-3', 'stop', 'top');
+    await frame(); await frame();
+    const stops = [...$('stops').children];
+    ok('two stop markers drawn', stops.length === 2, stops.length);
+    ok('older stop is faded, newest is not', stops[0].classList.contains('old') && !stops[1].classList.contains('old'));
+    ok('stop label has date', /Stopped \w{3}, \w{3} \d+/.test(stops[1].textContent), stops[1].textContent);
+    ok('meter shows last stopped', /Last stopped/.test($('ssub').textContent), $('ssub').textContent);
+    const saved = JSON.parse(sessionStorage.getItem('__ppStub'))[key];
+    ok('stops saved with timestamps', saved && saved.stops.length === 2 && saved.stops.every((s) => s.t > 0));
+    // newest stop marker sits on its line
+    const st = saved.stops[1];
+    await frame();
+    ok('stop marker on its line', Math.abs(parseFloat(stops[1].style.top) - charTop('p5-3', st.offset)) < 1, [stops[1].style.top, charTop('p5-3', st.offset)]);
+    // Clear removes passage marks only
+    $('pill').querySelector('button[data-act=clear]').click(); await frame(); await frame();
+    const afterClear = JSON.parse(sessionStorage.getItem('__ppStub'))[key];
+    ok('Clear removes start/end', !$('pill').classList.contains('has-pass') && afterClear.start === null && afterClear.end === null);
+    ok('Clear keeps stop markers', afterClear.stops.length === 2);
+    // Resume scrolls the newest stop to ~40px from the top
+    window.scrollTo(0, 0); await frame();
+    $('pill').querySelector('button[data-act=resume]').click();
+    let last = -1; for (let i = 0; i < 50; i++) { await sleep(100); if (scrollY === last) break; last = scrollY; }
+    await frame();
+    ok('Resume brings latest stop near the top', Math.abs(charTop('p5-3', st.offset) - 40) < 2, charTop('p5-3', st.offset));
+    // zoom message keeps meter size: k = 0.5 at 200%
+    __ppSend({ type: 'zoom', factor: 2, base: 1 }); await frame();
+    ok('zoom sets --k', getComputedStyle(document.getElementById('passage-progress-host')).getPropertyValue('--k').trim() === '0.5');
+    __ppSend({ type: 'zoom', factor: 1, base: 1 });
+    sessionStorage.setItem('__selftest1', out.join('\n'));
+    location.replace('selftest.html?phase=2');
+    return;
+  }
+
+  // phase 2: after reload
+  // marks are keyed by URL; phase 2 has a different URL, so copy phase 1's marks over
+  const store = JSON.parse(sessionStorage.getItem('__ppStub'));
+  const k2 = 'marks:' + location.href.split('#')[0];
+  if (!store[k2]) {
+    store[k2] = store[key];
+    sessionStorage.setItem('__ppStub', JSON.stringify(store));
+    location.reload();
+    return;
+  }
+  await frame(); await frame();
+  ok('stops restored after reload', $('stops').children.length === 2, $('stops').children.length);
+  ok('restored newest marker still bold', !$('stops').lastChild.classList.contains('old'));
+  // delete the older one with its ×
+  const older = $('stops').firstChild;
+  older.querySelector('button[data-act=del-stop]').click(); await frame(); await frame();
+  const after = JSON.parse(sessionStorage.getItem('__ppStub'))[k2];
+  ok('× removes that stop', $('stops').children.length === 1 && after.stops.length === 1);
+  ok('remaining stop is the newest', after.stops[0].path === '#p5-3', after.stops[0].path);
+  const text = '--- phase 1\n' + (sessionStorage.getItem('__selftest1') || '(missing)') + '\n--- phase 2 (after reload)\n' + out.join('\n');
+  document.getElementById('results').textContent = text;
+  // headless runs: report to the local server's access log
+  fetch('/__selftest_result?r=' + encodeURIComponent(text)).catch(() => {});
+})().catch((e) => {
+  document.getElementById('results').textContent = 'ERROR ' + e.stack;
+  fetch('/__selftest_result?r=' + encodeURIComponent('ERROR ' + e.stack)).catch(() => {});
+});
+</script>
+</body>
+</html>

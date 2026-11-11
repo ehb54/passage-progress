@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passage Progress privacy policy</title>
+<link rel="icon" href="icon128.png">
+<style>
+  :root { --bg: #fbfaf7; --fg: #1d2127; --muted: #5d6570; --link: #1d4ed8; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #131519; --fg: #e7e8ea; --muted: #9aa2ad; --link: #8ab4ff; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 28px 0 6px; }
+  .muted { color: var(--muted); }
+  a { color: var(--link); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Passage Progress: privacy policy</h1>
+  <p class="muted">Applies to the Passage Progress browser extension and bookmarklet. Last updated November 11, 2026.</p>
+
+  <h2>Summary</h2>
+  <p>Passage Progress does not collect, transmit, sell or share any data. It makes no network requests.
+    Everything it stores stays on your own computer.</p>
+
+  <h2>What it reads</h2>
+  <p>To show your reading progress, it reads the layout of the page you're viewing (scroll position and where the
+    text sits on screen) inside your browser. It needs permission to run on all websites so the meter can appear
+    on whatever page you're reading. Page contents are never copied or sent anywhere.</p>
+
+  <h2>What it stores, and where</h2>
+  <ul>
+    <li>The passage start/end marks and “stopped here” markers you set, saved per page address so they come
+      back when you return. A “stopped here” marker includes the date and time you set it.
+      A mark records a reference to its place in the page and a short snippet (up to 60 characters) of the
+      text at that point, used to find it again.</li>
+    <li>The meter's position on screen, and whether it's shown or hidden.</li>
+  </ul>
+  <p>The extension keeps these in the browser's local extension storage. The bookmarklet keeps them in the
+    website's own local storage on your computer. Nothing is synced to any server. The extension keeps marks for at most
+    the 500 most recently marked pages.</p>
+
+  <h2>Removing your data</h2>
+  <p>Click <b>Clear</b> on the meter to remove a page's start/end marks, and the × on a “stopped here” marker to
+    delete it. Uninstalling the extension deletes everything it
+    stored. Bookmarklet data is removed when you clear that site's data in your browser.</p>
+
+  <h2>Contact</h2>
+  <p>Questions or problems: <a href="https://github.com/ehb54/passage-progress/issues">open an issue on GitHub</a>.</p>
+</main>
+</body>
+</html>
