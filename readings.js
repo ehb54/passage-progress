@@ -14,6 +14,7 @@
   const searchEl = document.getElementById('search');
   const showEl = document.getElementById('show-meter');
   let items = [];
+  const expanded = new Set(); // pages whose stop history is shown (this visit only)
 
   function h(tag, attrs, ...kids) {
     const el = document.createElement(tag);
@@ -90,46 +91,104 @@
     listEl.replaceChildren(...kids);
   }
 
+  // ⌘/Ctrl/Shift-click or middle-click always opens a new tab, even if the
+  // page is already open somewhere.
+  function onOpen(el, go) {
+    el.addEventListener('click', (e) => go(e.metaKey || e.ctrlKey || e.shiftKey));
+    el.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault()); // no autoscroll
+    el.addEventListener('auxclick', (e) => e.button === 1 && go(true));
+  }
+
+  // A × that asks once ("Remove?") before doing anything.
+  function confirmButton(cls, label, title, ask, onConfirm) {
+    const b = h('button', { class: cls, title, 'aria-label': title }, label);
+    const reset = () => {
+      b.classList.remove('confirm');
+      b.textContent = label;
+    };
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!b.classList.contains('confirm')) {
+        b.classList.add('confirm');
+        b.textContent = ask;
+        return;
+      }
+      onConfirm();
+    });
+    b.addEventListener('mouseleave', reset);
+    b.addEventListener('blur', reset);
+    return b;
+  }
+
+  const NEW_TAB_HINT = '⌘/Ctrl-click or middle-click: in a new tab';
+
   function entry(it) {
     const last = it.stops[it.stops.length - 1];
     const action = last ? 'Open where you stopped' : 'Open at the passage start';
-    const open = h('button', { class: 'open', title: action + '\n⌘/Ctrl-click or middle-click: in a new tab\n' + it.url },
+    const open = h('button', { class: 'open', title: action + '\n' + NEW_TAB_HINT + '\n' + it.url },
       h('div', { class: 'title' }, it.title || describeUrl(it.url)),
       h('div', { class: 'meta' }, (it.title ? describeUrl(it.url) + ' · ' : '') + timeOnly(it.t)),
       h('div', { class: 'tags' },
-        last && h('span', { class: 'tag stop' },
-          '⏸ Stopped ' + fmtTime(last.t) + (it.stops.length > 1 ? ' · ' + it.stops.length + ' stops' : '')),
+        last && h('span', { class: 'tag stop' }, '⏸ Stopped ' + fmtTime(last.t)),
         it.hasPass && h('span', { class: 'tag pass' }, 'Passage marked')));
-    // ⌘/Ctrl/Shift-click or middle-click always opens a new tab, even if the
-    // page is already open somewhere.
-    open.addEventListener('click', (e) => openReading(it.url, e.metaKey || e.ctrlKey || e.shiftKey));
-    open.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault()); // no autoscroll
-    open.addEventListener('auxclick', (e) => e.button === 1 && openReading(it.url, true));
+    onOpen(open, (newTab) => openReading(it.url, newTab));
 
-    const del = h('button', { class: 'del', title: 'Forget this page’s marks', 'aria-label': 'Forget this page’s marks' }, '×');
-    del.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (!del.classList.contains('confirm')) {
-        del.classList.add('confirm');
-        del.textContent = 'Remove?';
-        return;
-      }
-      await chrome.storage.local.remove(it.key);
-    });
-    del.addEventListener('mouseleave', () => {
-      del.classList.remove('confirm');
-      del.textContent = '×';
-    });
-    del.addEventListener('blur', () => {
-      del.classList.remove('confirm');
-      del.textContent = '×';
-    });
-    return h('div', { class: 'entry' }, open, del);
+    const del = confirmButton('del', '×', 'Forget this page’s marks', 'Remove?',
+      () => chrome.storage.local.remove(it.key));
+
+    const box = h('div', { class: 'entry' }, open, del);
+    // Stop history: hidden by default; offered for pages with more than one
+    // stop (and kept open while you delete them down to the last one).
+    const n = it.stops.length;
+    if (n > 1 || (n && expanded.has(it.key))) {
+      const histId = 'hist-' + encodeURIComponent(it.key);
+      const toggle = h('button', { class: 'hist-toggle', 'aria-controls': histId });
+      let hist = null;
+      const show = (on) => {
+        toggle.setAttribute('aria-expanded', String(on));
+        toggle.title = on ? 'Hide the stop history' : 'Show every stop on this page, to go back to an earlier one or delete it';
+        toggle.textContent = (on ? '▾ ' : '▸ ') + n + (n === 1 ? ' stop' : ' stops');
+        if (on && !hist) box.append((hist = stopHistory(it, histId)));
+        if (!on && hist) (hist.remove(), (hist = null));
+      };
+      toggle.addEventListener('click', () => {
+        const on = !expanded.has(it.key);
+        if (on) expanded.add(it.key);
+        else expanded.delete(it.key);
+        show(on);
+      });
+      box.append(toggle);
+      show(expanded.has(it.key));
+    }
+    return box;
   }
 
-  async function openReading(url, newTab) {
+  function stopHistory(it, id) {
+    const rows = [...it.stops].sort((a, b) => b.t - a.t).map((s, i) => {
+      const go = h('button', { class: 'hopen', title: 'Open at this stop\n' + NEW_TAB_HINT },
+        h('span', { class: 'when' }, '⏸ ' + fmtTime(s.t)),
+        i === 0 && h('span', { class: 'latest' }, 'latest'),
+        s.snippet && h('span', { class: 'snip' }, '“' + s.snippet + (s.snippet.length >= 60 ? '…”' : '”')));
+      onOpen(go, (newTab) => openReading(it.url, newTab, s.t));
+      const del = confirmButton('hdel', '×', 'Delete this stop', 'Delete?', () => deleteStop(it.key, s.t));
+      return h('li', { class: 'hrow' }, go, del);
+    });
+    return h('ol', { class: 'hist', id }, ...rows);
+  }
+
+  // Removes one stop. The page's date in the list is left alone, so it doesn't
+  // jump around while you tidy its history; an open copy of the page updates.
+  async function deleteStop(key, t) {
+    const cur = (await chrome.storage.local.get(key))[key];
+    if (!cur) return;
+    const stops = (Array.isArray(cur.stops) ? cur.stops : []).filter((s) => s && s.t !== t);
+    if (!stops.length && !cur.start && !cur.end) await chrome.storage.local.remove(key);
+    else await chrome.storage.local.set({ [key]: { ...cur, stops } });
+  }
+
+  async function openReading(url, newTab, stopT) {
     try {
-      await chrome.runtime.sendMessage({ type: 'open-reading', url, newTab: !!newTab });
+      await chrome.runtime.sendMessage({ type: 'open-reading', url, newTab: !!newTab, stopT: stopT || null });
     } catch (_) {}
     if (isPopup) window.close();
   }

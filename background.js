@@ -91,8 +91,9 @@ const PENDING_MS = 2 * 60 * 1000;
 // Switch to the page if it's already open; otherwise open it and leave a
 // "resume" note that the page's content script collects once it has loaded.
 // newTab always opens a fresh tab (next to `from`, when given), leaving any
-// copy that's already open where it is.
-async function openReading(url, { newTab = false, from = null } = {}) {
+// copy that's already open where it is. stopT picks one stop from the page's
+// history (by its time); otherwise the latest stop is used.
+async function openReading(url, { newTab = false, from = null, stopT = null } = {}) {
   if (!/^(https?|file):/i.test(url)) return;
   const page = url.split('#')[0]; // marks are kept per page, ignoring #fragments
   if (!newTab) {
@@ -101,11 +102,11 @@ async function openReading(url, { newTab = false, from = null } = {}) {
     if (open) {
       await chrome.tabs.update(open.id, { active: true });
       chrome.windows.update(open.windowId, { focused: true }).catch(() => {});
-      send(open.id, { type: 'resume' });
+      send(open.id, { type: 'resume', stopT });
       return;
     }
   }
-  await chrome.storage.session.set({ ['pending:' + page]: Date.now() });
+  await chrome.storage.session.set({ ['pending:' + page]: { at: Date.now(), stopT } });
   const props = { url };
   if (from && from.id != null) {
     props.openerTabId = from.id;
@@ -117,10 +118,11 @@ async function openReading(url, { newTab = false, from = null } = {}) {
 
 async function takePending(url) {
   const key = 'pending:' + url;
-  const got = await chrome.storage.session.get(key);
-  if (!got[key]) return false;
+  const got = (await chrome.storage.session.get(key))[key];
+  if (!got) return { resume: false };
   await chrome.storage.session.remove(key);
-  return Date.now() - got[key] < PENDING_MS;
+  const at = typeof got === 'number' ? got : got.at; // 1.2/1.3 stored just the time
+  return { resume: Date.now() - at < PENDING_MS, stopT: (got && got.stopT) || null };
 }
 
 chrome.commands.onCommand.addListener((command, tab) => {
@@ -152,12 +154,13 @@ chrome.tabs.onZoomChange.addListener(({ tabId }) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
   if (msg && msg.type === 'open-reading' && typeof msg.url === 'string') {
-    openReading(msg.url, { newTab: !!msg.newTab, from: msg.newTab ? sender.tab : null })
+    const stopT = Number.isFinite(msg.stopT) ? msg.stopT : null;
+    openReading(msg.url, { newTab: !!msg.newTab, from: msg.newTab ? sender.tab : null, stopT })
       .then(() => sendResponse(true), () => sendResponse(false));
     return true;
   }
   if (msg && msg.type === 'get-pending' && typeof msg.url === 'string') {
-    takePending(msg.url).then((resume) => sendResponse({ resume }), () => sendResponse(null));
+    takePending(msg.url).then(sendResponse, () => sendResponse(null));
     return true;
   }
   if (msg && msg.type === 'get-zoom' && sender.tab && sender.tab.id != null) {

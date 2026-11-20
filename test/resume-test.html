@@ -24,7 +24,7 @@
     sessionStorage.setItem('__ppStub', JSON.stringify(store));
     sessionStorage.setItem('__resumeSeeded', '1');
   }
-  window.__ppPending = { resume: true }; // "opened from the list"
+  window.__ppPending = { resume: true, stopT: 1762800000000 }; // "opened from the list", at the older stop
   setTimeout(() => {
     const c = document.getElementById('content');
     for (let i = 1; i <= 60; i++) {
@@ -50,12 +50,18 @@
   // text arrives at 1.5 s; the anchor resolves on the next tick; then it scrolls
   await sleep(2500);
   await settle();
-  ok('opened page jumps to the latest stop once its text loads', Math.abs(lineTop('r38') - 40) < 2, lineTop('r38'));
+  ok('opened page jumps to the chosen (older) stop once its text loads', Math.abs(lineTop('r20') - 40) < 2, lineTop('r20'));
   // right-click "Resume where we stopped" sends {type:'resume'}
   window.scrollTo(0, 0); await sleep(100);
   __ppSend({ type: 'resume' });
   await settle();
   ok('menu Resume jumps to the latest stop', Math.abs(lineTop('r38') - 40) < 2, lineTop('r38'));
+  __ppSend({ type: 'resume', stopT: 1762800000000 });
+  await settle();
+  ok('resume with a stop time goes to that stop', Math.abs(lineTop('r20') - 40) < 2, lineTop('r20'));
+  __ppSend({ type: 'resume', stopT: 123 }); // a stop deleted meanwhile
+  await settle();
+  ok('an unknown stop time falls back to the latest', Math.abs(lineTop('r38') - 40) < 2, lineTop('r38'));
   const badge = __ppLog.filter((m) => m.type === 'badge').pop();
   ok('menu gets the latest stop time and passage start', badge && badge.stopT === 1763400000000 && badge.hasStart === true, badge && { stopT: badge.stopT, hasStart: badge.hasStart });
   // meter Resume button: ⌘-click / middle-click ask for a new tab instead of scrolling

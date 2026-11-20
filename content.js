@@ -10,8 +10,6 @@
   if (!(document.documentElement instanceof HTMLElement)) return;
 
   const HOST_ID = 'passage-progress-host';
-  const MAX_SAVED_PAGES = 500;
-  const MAX_STOPS = 30; // per page
 
   // A previous copy may still be in the page (e.g. the extension was reloaded
   // or updated). If it is still alive, keep it; if it is orphaned, replace it.
@@ -296,8 +294,9 @@
     if (!anchor) return;
     if (which === 'stop') {
       const stop = Object.assign({}, anchor, { t: Date.now() });
-      S.saved.stops = S.saved.stops.concat(stop).slice(-MAX_STOPS);
-      S.live.stops = S.live.stops.concat(resolve(stop)).slice(-MAX_STOPS);
+      // every stop is kept until someone deletes it (no history limit)
+      S.saved.stops = S.saved.stops.concat(stop);
+      S.live.stops = S.live.stops.concat(resolve(stop));
       save();
       schedule();
       return;
@@ -346,18 +345,8 @@
   function save() {
     const { start, end, stops } = S.saved;
     if (!start && !end && !stops.length) return store.remove(S.key);
+    // Saved pages are kept until removed by hand (Clear / × here, or the list).
     store.set({ [S.key]: { start, end, stops, t: Date.now(), title: pageTitle() } });
-    prune();
-  }
-
-  async function prune() {
-    try {
-      const all = await chrome.storage.local.get(null);
-      const keys = Object.keys(all).filter((k) => k.startsWith('marks:'));
-      if (keys.length <= MAX_SAVED_PAGES) return;
-      keys.sort((a, b) => (all[a].t || 0) - (all[b].t || 0));
-      store.remove(keys.slice(0, keys.length - MAX_SAVED_PAGES));
-    } catch (_) {}
   }
 
   function scrollToLine(y, m) {
@@ -377,17 +366,20 @@
     scrollToLine(liveY(l, 'start', m), m);
   }
 
-  // Opened from the saved-readings list: jump to the latest stop (or the
-  // passage start). Pages that build their text late are given time for the
-  // anchor to appear (tick() keeps re-resolving it); after that the saved
-  // page position is used.
+  // Opened from the saved-readings list: jump to the chosen stop (stopT), else
+  // the latest stop, else the passage start. Pages that build their text late
+  // are given time for the anchor to appear (tick() keeps re-resolving it);
+  // after that the saved page position is used.
   let resuming = false;
-  async function resumeWhenReady() {
+  async function resumeWhenReady(stopT) {
     if (resuming) return;
     resuming = true;
     try {
-      const target = () =>
-        S.live.stops.length ? S.live.stops[S.live.stops.length - 1] : S.live.start || null;
+      const target = () => {
+        const st = S.live.stops;
+        const chosen = stopT ? st.find((l) => l && l.a && l.a.t === stopT) : null;
+        return chosen || (st.length ? st[st.length - 1] : S.live.start || null);
+      };
       for (let i = 0; i < 30; i++) {
         const l = target();
         if (!l) return;
@@ -409,7 +401,7 @@
     try {
       chrome.runtime
         .sendMessage({ type: 'get-pending', url: location.href.split('#')[0] })
-        .then((r) => r && r.resume && resumeWhenReady(), () => {});
+        .then((r) => r && r.resume && resumeWhenReady(r.stopT), () => {});
     } catch (_) {}
   }
 
@@ -929,7 +921,7 @@
     else if (msg.type === 'pick') startPick(msg.which);
     else if (msg.type === 'clear') clearMarks();
     else if (msg.type === 'zoom') setZoom(msg);
-    else if (msg.type === 'resume') resumeWhenReady();
+    else if (msg.type === 'resume') resumeWhenReady(msg.stopT);
     else if (msg.type === 'refresh') {
       S.badge = ''; // re-report progress (tab switched to)
       schedule();

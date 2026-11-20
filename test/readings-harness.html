@@ -24,7 +24,8 @@
     pillPos: { right: 10, bottom: 10 },
     'marks:https://example.org/readings/chapter-3': {
       title: 'Chapter 3: On Reading Slowly', start: anchor, end: anchor,
-      stops: [Object.assign({}, anchor, { t: at(7, 19, 52) }), Object.assign({}, anchor, { t: at(0, 15, 40) })], t: at(0, 15, 40),
+      stops: [Object.assign({}, anchor, { t: at(7, 19, 52), snippet: 'Older stop paragraph' }),
+        Object.assign({}, anchor, { t: at(0, 15, 40), snippet: 'Newer stop paragraph' })], t: at(0, 15, 40),
     },
     'marks:https://example.org/readings/chapter-2': {
       title: 'Chapter 2: Habits of Attention', start: anchor, end: anchor, stops: [], t: at(1, 20, 5),
@@ -44,7 +45,11 @@
   const sc = document.createElement('script');
   sc.src = '../readings.js';
   document.body.append(sc);
-  if (new URLSearchParams(location.search).has('view')) return;
+  if (new URLSearchParams(location.search).has('view')) {
+    // ?view&expand: open the first page's stop history
+    if (location.search.includes('expand')) setTimeout(() => document.querySelector('.hist-toggle').click(), 400);
+    return;
+  }
 
   const out = [];
   const ok = (name, cond, extra) => out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : ''));
@@ -56,7 +61,10 @@
   ok('only pages with marks, newest first', titles.length === 3 && titles[0].startsWith('Chapter 3') && titles[1].startsWith('Chapter 2'), titles);
   ok('untitled page falls back to its address', titles[2] === 'news.example.com/long-article', titles[2]);
   const first = document.querySelector('.entry');
-  ok('shows last stop time and stop count', /Stopped .* · 2 stops/.test(first.querySelector('.tag.stop').textContent), first.querySelector('.tag.stop').textContent);
+  ok('shows last stop time', /^⏸ Stopped \w{3}, /.test(first.querySelector('.tag.stop').textContent), first.querySelector('.tag.stop').textContent);
+  const toggles = () => [...document.querySelectorAll('.entry')].map((e) => (e.querySelector('.hist-toggle') || {}).textContent || '');
+  ok('history is collapsed by default, offered only with 2+ stops', !document.querySelector('.hist') &&
+    JSON.stringify(toggles()) === JSON.stringify(['▸ 2 stops', '', '']), toggles());
   ok('shows passage tag', !!first.querySelector('.tag.pass'));
   ok('meter switch reflects setting', document.getElementById('show-meter').checked === true);
   // filter
@@ -88,6 +96,31 @@
   const sw = document.getElementById('show-meter');
   sw.click(); await sleep(50);
   ok('meter switch turns the meter off', __ppStore.showMeter === false);
+  // stop history: expand, open an earlier stop, delete stops
+  const t3 = () => document.querySelector('.entry .hist-toggle');
+  t3().click(); await sleep(50);
+  const rows = () => [...document.querySelectorAll('.hist .hrow')];
+  ok('expanding shows every stop, newest first, with its text', rows().length === 2 &&
+    rows()[0].querySelector('.latest') && rows()[0].querySelector('.snip').textContent.includes('Newer') &&
+    rows()[1].querySelector('.snip').textContent.includes('Older') && t3().getAttribute('aria-expanded') === 'true',
+    rows().map((r) => r.textContent));
+  rows()[1].querySelector('.hopen').click(); await sleep(50);
+  let m = __ppLog.filter((x) => x.type === 'open-reading').pop();
+  ok('clicking an earlier stop opens the page at that stop', m && m.stopT === at(7, 19, 52) && m.newTab === false && m.url.endsWith('chapter-3'), m);
+  rows()[0].querySelector('.hopen').dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 })); await sleep(50);
+  m = __ppLog.filter((x) => x.type === 'open-reading').pop();
+  ok('middle-click on a stop opens it in a new tab', m && m.stopT === at(0, 15, 40) && m.newTab === true, m);
+  const k3 = 'marks:https://example.org/readings/chapter-3';
+  const hdel = rows()[1].querySelector('.hdel');
+  hdel.click(); await sleep(50);
+  ok('first × on a stop only asks to confirm', hdel.textContent === 'Delete?' && __ppStore[k3].stops.length === 2);
+  hdel.click(); await sleep(200);
+  ok('second click deletes just that stop', __ppStore[k3].stops.length === 1 && __ppStore[k3].stops[0].t === at(0, 15, 40), __ppStore[k3].stops);
+  ok('deleting keeps the page’s date and passage', __ppStore[k3].t === at(0, 15, 40) && !!__ppStore[k3].start);
+  ok('history stays open after deleting', rows().length === 1 && t3() && t3().textContent === '▾ 1 stop', t3() && t3().textContent);
+  rows()[0].querySelector('.hdel').click(); rows()[0].querySelector('.hdel').click(); await sleep(200);
+  ok('deleting the last stop keeps a page that has a passage', __ppStore[k3] && __ppStore[k3].stops.length === 0 &&
+    !document.querySelector('.hist') && !t3() && document.querySelector('.entry .title').textContent.startsWith('Chapter 3'));
   // a title from a web page is shown as text, never as HTML
   await chrome.storage.local.set({ 'marks:https://evil.example/': { title: '<img src=x onerror=alert(1)>Bad', stops: [Object.assign({}, anchor, { t: Date.now() })], t: Date.now() } });
   await sleep(200);

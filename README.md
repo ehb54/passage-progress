@@ -47,8 +47,9 @@ The meter keeps the same size when you zoom the page (⌘+ / Ctrl+).
 | Go back to where you stopped | Right-click → **Resume where we stopped (date)**, or hover the meter → **Resume**. You can assign a key to "Resume" at `chrome://extensions/shortcuts` |
 | …in a new tab, leaving this one where it is | Right-click → **Resume in a new tab**, or ⌘/Ctrl-click (or middle-click) the meter's **Resume** |
 | Reopen a page you were reading | Toolbar button → click the page in **Saved readings** (also: right-click → **Saved readings…** for a full tab). If it's already open, that tab comes to the front. ⌘/Ctrl-click or middle-click opens another copy in a new tab instead |
+| Go back to an earlier stop | **Saved readings** → click **▸ N stops** under the page, then click the stop you want (newest first, with the text it's on) |
+| Delete one stop | Click the **×** on its label on the page, or in **Saved readings** → **▸ N stops** → **×**, then **Delete?** |
 | Forget a saved page | **Saved readings** → hover the page → **×**, then **Remove?** |
-| Delete a stopped-here marker | Click the **×** on its label |
 | Jump to the passage start | Hover the meter → **Go to start** |
 | Remove the start/end marks | Hover the meter → **Clear**, or right-click → **Clear passage marks** (stop markers stay) |
 | Hide/show the meter | ⌥⇧P, the **Meter on pages** switch in the toolbar popup, or hover the meter → **✕**. Bookmarklet: click the bookmark |
@@ -58,8 +59,8 @@ Notes:
 
 - If you set only a start, the passage runs to the end of the page. If you set only
   an end, it runs from the top.
-- Each meeting can leave its own stop marker (up to 30 per page). The newest is drawn bold and
-  older ones faded, so you can see how far you got each time.
+- Each meeting can leave its own stop marker, and every one is kept until you delete it. The
+  newest is drawn bold and older ones faded, so you can see how far you got each time.
 - Marks are tied to the text itself, not to a pixel position. They stay on the right
   line when images load, the window is resized, or you zoom. They're saved per page
   address, so they come back if you reload or revisit the page.
@@ -82,8 +83,7 @@ Notes:
 ## Privacy
 
 Nothing leaves your browser. There are no network requests. Marks and settings are kept in
-`chrome.storage.local` (bookmarklet: the site's localStorage). The 500 most recently marked pages are
-retained. The "read and change data on all websites" permission is what lets the meter appear on any
+`chrome.storage.local` (bookmarklet: the site's localStorage), and kept until you delete them. The "read and change data on all websites" permission is what lets the meter appear on any
 page you read. Full policy: https://ehb54.github.io/passage-progress/privacy.html
 
 ## Files

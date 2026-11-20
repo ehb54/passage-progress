@@ -72,7 +72,7 @@
   const c1 = of('tabs.create')[0];
   ok('right-click "in a new tab" opens the same page next to this tab', c1 && c1[1].url === 'https://ex.org/a#sec' && c1[1].index === 3 && c1[1].openerTabId === 5 && c1[1].windowId === 1, c1);
   ok('...even though the page is already open', of('tabs.update').length === 0 && of('tabs.send').length === 0);
-  ok('...and leaves a resume note for it (ignoring #fragment)', typeof session['pending:https://ex.org/a'] === 'number', Object.keys(session));
+  ok('...and leaves a resume note for it (ignoring #fragment)', typeof session['pending:https://ex.org/a']?.at === 'number', Object.keys(session));
   ok('the new tab collects the note once', (await ask({ type: 'get-pending', url: 'https://ex.org/a' }, page)).resume === true &&
     (await ask({ type: 'get-pending', url: 'https://ex.org/a' }, page)).resume === false);
 
@@ -90,7 +90,7 @@
   await ask({ type: 'open-reading', url: 'https://ex.org/b', newTab: true }, popup);
   const c2 = of('tabs.create')[0];
   ok('list ⌘-click opens a new tab even when one is open', c2 && c2[1].url === 'https://ex.org/b' && c2[1].index === undefined && of('tabs.update').length === 0, calls);
-  ok('...with a resume note', typeof session['pending:https://ex.org/b'] === 'number');
+  ok('...with a resume note', typeof session['pending:https://ex.org/b']?.at === 'number');
 
   fresh();
   await ask({ type: 'open-reading', url: 'https://ex.org/a#sec', newTab: true }, page);
@@ -102,6 +102,23 @@
   ask({ type: 'open-reading', url: 'https://ex.org/c', newTab: true }, { id: 'someone-else' });
   await sleep(30);
   ok('refuses non-web addresses and other senders', calls.length === 0 && !Object.keys(session).length, calls);
+
+  fresh();
+  await ask({ type: 'open-reading', url: 'https://ex.org/c', stopT: 1762800000000 }, popup);
+  const note = session['pending:https://ex.org/c'];
+  ok('opening at an earlier stop leaves its time in the note', note && note.stopT === 1762800000000 && of('tabs.create').length === 1, note);
+  const got = await ask({ type: 'get-pending', url: 'https://ex.org/c' }, page);
+  ok('...and hands it to the page', got && got.resume === true && got.stopT === 1762800000000, got);
+  fresh();
+  await ask({ type: 'open-reading', url: 'https://ex.org/b', stopT: 1762800000000 }, popup);
+  ok('an open copy is told which stop', of('tabs.send')[0]?.[2]?.type === 'resume' && of('tabs.send')[0]?.[2]?.stopT === 1762800000000, calls);
+  fresh();
+  await ask({ type: 'open-reading', url: 'https://ex.org/c', stopT: 'soon' }, popup);
+  ok('a bad stop time is ignored', session['pending:https://ex.org/c']?.stopT === null, session['pending:https://ex.org/c']);
+  fresh();
+  session['pending:https://ex.org/d'] = Date.now(); // a note left by 1.2/1.3
+  const old = await ask({ type: 'get-pending', url: 'https://ex.org/d' }, page);
+  ok('older-style notes still work', old && old.resume === true && old.stopT === null, old);
 
   const tabItem = () => of('menus.update').filter((c) => c[1] === 'pp-resume-tab').pop()?.[2];
   fresh();
