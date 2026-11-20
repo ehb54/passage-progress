@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Passage Progress",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Shows how far through a page you are, plus your progress through a start/end passage you mark.",
   "permissions": [
     "storage",

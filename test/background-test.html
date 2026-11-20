@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Background test</title>
+</head>
+<body>
+<!-- Loads the real background.js against a fake chrome.* API and checks the
+     context menu, opening a saved reading (switch vs. new tab) and resume notes.
+     Run with: python3 tools/run_selftest.py test/background-test.html -->
+<script>
+  const calls = [];
+  const L = {};
+  const ev = (name) => ({ addListener: (f) => (L[name] = f) });
+  const tabsList = [
+    { id: 5, index: 2, windowId: 1, active: true, url: 'https://ex.org/a#sec' },
+    { id: 9, index: 0, windowId: 2, active: false, url: 'https://ex.org/b' },
+  ];
+  const session = {};
+  window.chrome = {
+    runtime: { id: 'me', onInstalled: ev('installed'), onMessage: ev('msg'), getURL: (p) => 'chrome-extension://me/' + p, lastError: undefined },
+    contextMenus: {
+      removeAll: (cb) => cb && cb(),
+      create: (p) => calls.push(['menus.create', p]),
+      update: (id, p, cb) => { calls.push(['menus.update', id, p]); cb && cb(); },
+      onClicked: ev('menuClick'),
+    },
+    tabs: {
+      query: async (q) => (q && q.active ? tabsList.filter((t) => t.active) : tabsList),
+      update: async (id, p) => calls.push(['tabs.update', id, p]),
+      create: async (p) => calls.push(['tabs.create', p]),
+      sendMessage: (id, m) => { calls.push(['tabs.send', id, m]); return Promise.resolve(); },
+      getZoom: async () => 1,
+      getZoomSettings: async () => ({ defaultZoomFactor: 1 }),
+      onZoomChange: ev('zoom'), onActivated: ev('activated'), onUpdated: ev('updated'),
+    },
+    windows: { update: async (id, p) => calls.push(['windows.update', id, p]), onFocusChanged: ev('focus'), WINDOW_ID_NONE: -1 },
+    storage: {
+      session: {
+        set: async (o) => Object.assign(session, o),
+        get: async (k) => (k in session ? { [k]: session[k] } : {}),
+        remove: async (k) => { delete session[k]; },
+      },
+      local: { get: async () => ({}), set: async () => {} },
+    },
+    scripting: { executeScript: () => Promise.resolve() },
+    action: { setBadgeTextColor() {}, setBadgeText: () => Promise.resolve(), setBadgeBackgroundColor: () => Promise.resolve() },
+    commands: { onCommand: ev('command') },
+  };
+</script>
+<script src="../background.js"></script>
+<script>
+(async () => {
+  const out = [];
+  const ok = (name, cond, extra) => out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : ''));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ask = (msg, sender) => new Promise((res) => { if (L.msg(msg, sender, res) !== true) res(undefined); });
+  const of = (kind) => calls.filter((c) => c[0] === kind);
+  const fresh = () => { calls.length = 0; for (const k in session) delete session[k]; };
+  const popup = { id: 'me' }; // the saved-readings popup has no tab
+  const page = { id: 'me', tab: tabsList[0] }; // a page's content script
+
+  await L.installed();
+  const item = of('menus.create').map((c) => c[1]).find((p) => p.id === 'pp-resume-tab');
+  ok('menu has "Resume in a new tab", greyed out until a page reports in', item && item.parentId === 'pp-root' && item.enabled === false, item);
+  const order = of('menus.create').map((c) => c[1].id);
+  ok('it sits right under "Resume where we stopped"', order.indexOf('pp-resume-tab') === order.indexOf('pp-resume') + 1, order);
+
+  fresh();
+  L.menuClick({ menuItemId: 'pp-resume-tab' }, tabsList[0]);
+  await sleep(30);
+  const c1 = of('tabs.create')[0];
+  ok('right-click "in a new tab" opens the same page next to this tab', c1 && c1[1].url === 'https://ex.org/a#sec' && c1[1].index === 3 && c1[1].openerTabId === 5 && c1[1].windowId === 1, c1);
+  ok('...even though the page is already open', of('tabs.update').length === 0 && of('tabs.send').length === 0);
+  ok('...and leaves a resume note for it (ignoring #fragment)', typeof session['pending:https://ex.org/a'] === 'number', Object.keys(session));
+  ok('the new tab collects the note once', (await ask({ type: 'get-pending', url: 'https://ex.org/a' }, page)).resume === true &&
+    (await ask({ type: 'get-pending', url: 'https://ex.org/a' }, page)).resume === false);
+
+  fresh();
+  L.menuClick({ menuItemId: 'pp-resume' }, tabsList[0]);
+  await sleep(10);
+  ok('right-click Resume still scrolls the page in place', of('tabs.send').length === 1 && of('tabs.send')[0][2].type === 'resume' && of('tabs.create').length === 0);
+
+  fresh();
+  await ask({ type: 'open-reading', url: 'https://ex.org/b', newTab: false }, popup);
+  ok('list click switches to an open copy and resumes there', of('tabs.update')[0]?.[1] === 9 && of('windows.update')[0]?.[1] === 2 &&
+    of('tabs.send')[0]?.[1] === 9 && of('tabs.create').length === 0, calls);
+
+  fresh();
+  await ask({ type: 'open-reading', url: 'https://ex.org/b', newTab: true }, popup);
+  const c2 = of('tabs.create')[0];
+  ok('list ⌘-click opens a new tab even when one is open', c2 && c2[1].url === 'https://ex.org/b' && c2[1].index === undefined && of('tabs.update').length === 0, calls);
+  ok('...with a resume note', typeof session['pending:https://ex.org/b'] === 'number');
+
+  fresh();
+  await ask({ type: 'open-reading', url: 'https://ex.org/a#sec', newTab: true }, page);
+  const c3 = of('tabs.create')[0];
+  ok('meter ⌘-click opens next to its own tab', c3 && c3[1].index === 3 && c3[1].openerTabId === 5, c3);
+
+  fresh();
+  await ask({ type: 'open-reading', url: 'javascript:alert(1)', newTab: true }, popup);
+  ask({ type: 'open-reading', url: 'https://ex.org/c', newTab: true }, { id: 'someone-else' });
+  await sleep(30);
+  ok('refuses non-web addresses and other senders', calls.length === 0 && !Object.keys(session).length, calls);
+
+  const tabItem = () => of('menus.update').filter((c) => c[1] === 'pp-resume-tab').pop()?.[2];
+  fresh();
+  ask({ type: 'badge', text: '40%', passage: true, page: 40, pass: 12, stopT: 1763400000000, hasStart: true }, page);
+  ok('with a stop: "Resume in a new tab" is enabled', tabItem()?.enabled === true && tabItem()?.title === 'Resume in a new tab', tabItem());
+  ask({ type: 'badge', text: '40%', passage: true, page: 40, pass: 12, stopT: null, hasStart: true }, page);
+  ok('passage only: "Go to passage start in a new tab"', tabItem()?.enabled === true && tabItem()?.title === 'Go to passage start in a new tab', tabItem());
+  ask({ type: 'badge', text: '40%', passage: false, page: 40, pass: null, stopT: null, hasStart: false }, page);
+  ok('nothing saved: greyed out', tabItem()?.enabled === false, tabItem());
+
+  fetch('/__selftest_result?r=' + encodeURIComponent(out.join('\n'))).catch(() => {});
+})().catch((e) => fetch('/__selftest_result?r=' + encodeURIComponent('ERROR ' + e.stack)));
+</script>
+</body>
+</html>

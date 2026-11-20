@@ -45,7 +45,8 @@ The meter keeps the same size when you zoom the page (⌘+ / Ctrl+).
 | …or with the keyboard | ⌥⇧S / ⌥⇧E (Alt+Shift+S / E), then click the line |
 | Leave a dated "stopped here" marker | Hover the meter → **Stopped here**, then click the line. Or right-click it → **Mark where we stopped (dated)**, or ⌥⇧X |
 | Go back to where you stopped | Right-click → **Resume where we stopped (date)**, or hover the meter → **Resume**. You can assign a key to "Resume" at `chrome://extensions/shortcuts` |
-| Reopen a page you were reading | Toolbar button → click the page in **Saved readings** (also: right-click → **Saved readings…** for a full tab) |
+| …in a new tab, leaving this one where it is | Right-click → **Resume in a new tab**, or ⌘/Ctrl-click (or middle-click) the meter's **Resume** |
+| Reopen a page you were reading | Toolbar button → click the page in **Saved readings** (also: right-click → **Saved readings…** for a full tab). If it's already open, that tab comes to the front. ⌘/Ctrl-click or middle-click opens another copy in a new tab instead |
 | Forget a saved page | **Saved readings** → hover the page → **×**, then **Remove?** |
 | Delete a stopped-here marker | Click the **×** on its label |
 | Jump to the passage start | Hover the meter → **Go to start** |
@@ -97,6 +98,7 @@ page you read. Full policy: https://ehb54.github.io/passage-progress/privacy.htm
 - `tools/make_icons.py`: regenerates the icons
 - `tools/run_selftest.py`: runs a test page in headless Chrome and prints its results, e.g.
   `python3 tools/run_selftest.py test/selftest.html` (also `test/resume-test.html`,
-  `test/readings-harness.html`, `test/bookmarklet-strict.html`, `test/bookmarklet-href.html`)
+  `test/readings-harness.html`, `test/background-test.html`, `test/bookmarklet-strict.html`,
+  `test/bookmarklet-href.html`)
 - `test/`: test pages. `chrome-stub.js` fakes the extension APIs, so `test.html` and `inner.html`
   can be opened by hand from `python3 -m http.server`

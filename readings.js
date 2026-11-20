@@ -93,14 +93,18 @@
   function entry(it) {
     const last = it.stops[it.stops.length - 1];
     const action = last ? 'Open where you stopped' : 'Open at the passage start';
-    const open = h('button', { class: 'open', title: action + '\n' + it.url },
+    const open = h('button', { class: 'open', title: action + '\n⌘/Ctrl-click or middle-click: in a new tab\n' + it.url },
       h('div', { class: 'title' }, it.title || describeUrl(it.url)),
       h('div', { class: 'meta' }, (it.title ? describeUrl(it.url) + ' · ' : '') + timeOnly(it.t)),
       h('div', { class: 'tags' },
         last && h('span', { class: 'tag stop' },
           '⏸ Stopped ' + fmtTime(last.t) + (it.stops.length > 1 ? ' · ' + it.stops.length + ' stops' : '')),
         it.hasPass && h('span', { class: 'tag pass' }, 'Passage marked')));
-    open.addEventListener('click', () => openReading(it.url));
+    // ⌘/Ctrl/Shift-click or middle-click always opens a new tab, even if the
+    // page is already open somewhere.
+    open.addEventListener('click', (e) => openReading(it.url, e.metaKey || e.ctrlKey || e.shiftKey));
+    open.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault()); // no autoscroll
+    open.addEventListener('auxclick', (e) => e.button === 1 && openReading(it.url, true));
 
     const del = h('button', { class: 'del', title: 'Forget this page’s marks', 'aria-label': 'Forget this page’s marks' }, '×');
     del.addEventListener('click', async (e) => {
@@ -123,9 +127,9 @@
     return h('div', { class: 'entry' }, open, del);
   }
 
-  async function openReading(url) {
+  async function openReading(url, newTab) {
     try {
-      await chrome.runtime.sendMessage({ type: 'open-reading', url });
+      await chrome.runtime.sendMessage({ type: 'open-reading', url, newTab: !!newTab });
     } catch (_) {}
     if (isPopup) window.close();
   }

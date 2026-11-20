@@ -603,7 +603,9 @@
           btn('end', 'Set end', 'Then click the line where the passage ends'),
           btn('stop', 'Stopped here', 'Then click the line where you stopped; it is saved with the date and time'),
           btn('goto', 'Go to start', 'Scroll to the passage start', 'needs-pass'),
-          btn('resume', 'Resume', 'Scroll to where you last stopped', 'needs-stop'),
+          btn('resume', 'Resume', IS_BOOKMARKLET
+            ? 'Scroll to where you last stopped'
+            : 'Scroll to where you last stopped (⌘/Ctrl-click: in a new tab)', 'needs-stop'),
           btn('clear', 'Clear', 'Remove the passage marks', 'needs-pass'),
           btn('hide', '✕', IS_BOOKMARKLET
             ? 'Hide meter (click the bookmark again to bring it back)'
@@ -789,6 +791,25 @@
     applyPos();
   });
 
+  // ⌘/Ctrl/Shift-click or middle-click: open the page again in a new tab at
+  // the stop, leaving this one where it is (extension only).
+  const wantsNewTab = (e) => !IS_BOOKMARKLET && (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1);
+  function resumeInNewTab() {
+    try {
+      chrome.runtime.sendMessage({ type: 'open-reading', url: location.href, newTab: true }).catch(() => {});
+    } catch (_) {}
+  }
+  root.addEventListener('mousedown', (e) => {
+    if (e.button === 1 && !IS_BOOKMARKLET && e.target.closest && e.target.closest('button[data-act="resume"]')) e.preventDefault(); // no autoscroll
+  });
+  root.addEventListener('auxclick', (e) => {
+    const b = e.target.closest && e.target.closest('button[data-act="resume"]');
+    if (!b || e.button !== 1 || IS_BOOKMARKLET) return;
+    e.preventDefault();
+    e.stopPropagation();
+    resumeInNewTab();
+  });
+
   root.addEventListener('click', (e) => {
     const b = e.target.closest && e.target.closest('button');
     if (!b) return;
@@ -796,7 +817,7 @@
     const act = b.dataset.act;
     if (act === 'start' || act === 'end' || act === 'stop') S.picking === act ? stopPick() : startPick(act);
     else if (act === 'goto') gotoStart();
-    else if (act === 'resume') resumeAtStop();
+    else if (act === 'resume') wantsNewTab(e) ? resumeInNewTab() : resumeAtStop();
     else if (act === 'del-stop') deleteStop(Number(b.dataset.t));
     else if (act === 'clear') clearMarks();
     else if (act === 'hide') store.set({ showMeter: false });

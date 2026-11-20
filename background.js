@@ -8,6 +8,7 @@ const ROOT_TITLE = 'Passage Progress';
 const MENU = [
   // title/enabled follow the page in front: see setResumeItem()
   { id: 'pp-resume', title: 'Resume where we stopped', enabled: false },
+  { id: 'pp-resume-tab', title: 'Resume in a new tab', enabled: false },
   { id: 'pp-sep0', type: 'separator' },
   { id: 'pp-start', title: 'Set passage START here' },
   { id: 'pp-end', title: 'Set passage END here' },
@@ -56,6 +57,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     case 'pp-resume':
       send(tab.id, { type: 'resume' });
       break;
+    case 'pp-resume-tab':
+      openReading(tab.url || '', { newTab: true, from: tab });
+      break;
     case 'pp-start':
       send(tab.id, { type: 'mark-context', which: 'start' });
       break;
@@ -86,18 +90,29 @@ const PENDING_MS = 2 * 60 * 1000;
 
 // Switch to the page if it's already open; otherwise open it and leave a
 // "resume" note that the page's content script collects once it has loaded.
-async function openReading(url) {
+// newTab always opens a fresh tab (next to `from`, when given), leaving any
+// copy that's already open where it is.
+async function openReading(url, { newTab = false, from = null } = {}) {
   if (!/^(https?|file):/i.test(url)) return;
-  const tabs = await chrome.tabs.query({});
-  const open = tabs.find((t) => t.url && t.url.split('#')[0] === url);
-  if (open) {
-    await chrome.tabs.update(open.id, { active: true });
-    chrome.windows.update(open.windowId, { focused: true }).catch(() => {});
-    send(open.id, { type: 'resume' });
-    return;
+  const page = url.split('#')[0]; // marks are kept per page, ignoring #fragments
+  if (!newTab) {
+    const tabs = await chrome.tabs.query({});
+    const open = tabs.find((t) => t.url && t.url.split('#')[0] === page);
+    if (open) {
+      await chrome.tabs.update(open.id, { active: true });
+      chrome.windows.update(open.windowId, { focused: true }).catch(() => {});
+      send(open.id, { type: 'resume' });
+      return;
+    }
   }
-  await chrome.storage.session.set({ ['pending:' + url]: Date.now() });
-  await chrome.tabs.create({ url });
+  await chrome.storage.session.set({ ['pending:' + page]: Date.now() });
+  const props = { url };
+  if (from && from.id != null) {
+    props.openerTabId = from.id;
+    props.index = from.index + 1;
+    props.windowId = from.windowId;
+  }
+  await chrome.tabs.create(props);
 }
 
 async function takePending(url) {
@@ -137,7 +152,8 @@ chrome.tabs.onZoomChange.addListener(({ tabId }) => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
   if (msg && msg.type === 'open-reading' && typeof msg.url === 'string') {
-    openReading(msg.url).then(() => sendResponse(true), () => sendResponse(false));
+    openReading(msg.url, { newTab: !!msg.newTab, from: msg.newTab ? sender.tab : null })
+      .then(() => sendResponse(true), () => sendResponse(false));
     return true;
   }
   if (msg && msg.type === 'get-pending' && typeof msg.url === 'string') {
@@ -172,23 +188,28 @@ function setMenuTitle(title) {
 
 // "Resume where we stopped (Tue, Nov 11, 3:40 PM)" for the page in front;
 // "Go to passage start" when it has a passage but no stop; greyed out otherwise.
+// The "in a new tab" item follows along.
 let resumeState = '';
 function setResumeItem(stopT, hasStart) {
-  let props;
+  let props, tabProps;
   if (stopT) {
     const when = new Date(stopT).toLocaleString(undefined, {
       weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
     });
     props = { title: `Resume where we stopped (${when})`, enabled: true };
+    tabProps = { title: 'Resume in a new tab', enabled: true };
   } else if (hasStart) {
     props = { title: 'Go to passage start', enabled: true };
+    tabProps = { title: 'Go to passage start in a new tab', enabled: true };
   } else {
     props = { title: 'Resume where we stopped', enabled: false };
+    tabProps = { title: 'Resume in a new tab', enabled: false };
   }
   const key = props.title + '|' + props.enabled;
   if (key === resumeState) return;
   resumeState = key;
   chrome.contextMenus.update('pp-resume', props, () => void chrome.runtime.lastError);
+  chrome.contextMenus.update('pp-resume-tab', tabProps, () => void chrome.runtime.lastError);
 }
 
 // Show the plain name until the new tab's page reports in (pages where the

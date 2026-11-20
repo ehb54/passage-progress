@@ -69,6 +69,15 @@
   await sleep(50);
   const msg = __ppLog.filter((m) => m.type === 'open-reading').pop();
   ok('clicking asks the background to open that page', msg && msg.url === 'https://example.org/readings/chapter-2', msg);
+  ok('plain click reuses an open tab', msg && msg.newTab === false, msg);
+  document.querySelectorAll('.entry .open')[0].dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true }));
+  await sleep(50);
+  const m2 = __ppLog.filter((m) => m.type === 'open-reading').pop();
+  ok('⌘-click asks for a new tab', m2 && m2.newTab === true && m2.url === 'https://example.org/readings/chapter-3', m2);
+  document.querySelectorAll('.entry .open')[1].dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 }));
+  await sleep(50);
+  const m3 = __ppLog.filter((m) => m.type === 'open-reading').pop();
+  ok('middle-click asks for a new tab', m3 && m3.newTab === true && m3.url === 'https://example.org/readings/chapter-2', m3);
   // remove takes two clicks
   const del = document.querySelectorAll('.entry .del')[2];
   del.click(); await sleep(50);

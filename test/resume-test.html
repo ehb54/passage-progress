@@ -58,6 +58,20 @@
   ok('menu Resume jumps to the latest stop', Math.abs(lineTop('r38') - 40) < 2, lineTop('r38'));
   const badge = __ppLog.filter((m) => m.type === 'badge').pop();
   ok('menu gets the latest stop time and passage start', badge && badge.stopT === 1763400000000 && badge.hasStart === true, badge && { stopT: badge.stopT, hasStart: badge.hasStart });
+  // meter Resume button: ⌘-click / middle-click ask for a new tab instead of scrolling
+  const rb = document.getElementById('passage-progress-host').shadowRoot.querySelector('button[data-act="resume"]');
+  window.scrollTo(0, 0); await sleep(100);
+  const nOpen = () => __ppLog.filter((m) => m.type === 'open-reading').length;
+  rb.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, metaKey: true }));
+  await sleep(300);
+  const nt = __ppLog.filter((m) => m.type === 'open-reading').pop();
+  ok('⌘-click on meter Resume opens a new tab, this one stays put', nt && nt.newTab === true && nt.url === location.href && scrollY === 0, nt);
+  rb.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, composed: true, button: 1 }));
+  await sleep(100);
+  ok('middle-click on meter Resume opens a new tab', nOpen() === 2, nOpen());
+  rb.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+  await settle();
+  ok('plain click on meter Resume scrolls here', nOpen() === 2 && Math.abs(lineTop('r38') - 40) < 2, lineTop('r38'));
   const saved = JSON.parse(sessionStorage.getItem('__ppStub'))[key];
   ok('title added to an entry saved without one', saved.title === 'Resume test page', saved.title);
   ok('backfilling the title keeps the entry date', saved.t === 1763400000000, saved.t);

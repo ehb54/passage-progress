@@ -16,7 +16,7 @@ Upload file: `dist/passage-progress-<version>.zip` (run `python3 tools/build.py`
 
 ## 2. Upload (you)
 
-Dashboard → **New item** → upload `dist/passage-progress-<version>.zip` (currently 1.2.0).
+Dashboard → **New item** → upload `dist/passage-progress-<version>.zip` (currently 1.3.0).
 
 ## 3. Store listing tab
 
@@ -42,7 +42,7 @@ Reading a long web page together? Passage Progress shows everyone where you are.
 • Page %: how far through the page you've scrolled, and roughly how many screens are left.
 • Passage %: mark where today's passage starts and ends (right-click a line, or use the meter), and see progress through just that part, with START/END lines on the page.
 • Pick up where you stopped: before you leave, click "Stopped here" on the line where you ended. It leaves a dated marker, e.g. "Stopped Tue, Nov 11, 3:40 PM". Next time, "Resume" jumps straight back. Each meeting can leave its own marker.
-• Saved readings: the toolbar button lists every page you've marked, grouped by date. Click one to reopen it right where you stopped, even if the page isn't open. Or right-click any page → "Resume where we stopped".
+• Saved readings: the toolbar button lists every page you've marked, grouped by date. Click one to reopen it right where you stopped, even if the page isn't open. Or right-click any page → "Resume where we stopped", or "Resume in a new tab" to keep your place in this one.
 • Your progress is shown in a small meter you can drag anywhere, on the toolbar icon, and at the top of the right-click menu.
 • Zoom in to make the text bigger (Ctrl/Cmd +). The meter stays the same small size.
 • Marks are tied to the text, so they stay on the right line when the page reflows, and they come back when you revisit the page.
