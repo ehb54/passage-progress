@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Saved readings harness</title>
+</head>
+<body>
+<!-- Loads the real readings.html markup + readings.js against chrome-stub.js
+     with seeded marks, then checks the list. Pass ?view to just look at it.
+     Run with: python3 tools/run_selftest.py test/readings-harness.html -->
+<script src="chrome-stub.js"></script>
+<script>
+  // ?view: for screenshots, hold the load event until the list has rendered
+  if (location.search.includes('view')) document.write('<img src="/__delay?ms=1500" width="1" height="1" style="position:absolute;left:-9px" alt="">');
+</script>
+<script>
+(async () => {
+  const now = new Date();
+  const at = (daysAgo, h, m) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo, h, m).getTime();
+  const anchor = { path: '#x', snippet: 'x', textIndex: 0, offset: 0, frac: 0, docFrac: 0.2 };
+  sessionStorage.clear();
+  await chrome.storage.local.set({
+    showMeter: true,
+    pillPos: { right: 10, bottom: 10 },
+    'marks:https://example.org/readings/chapter-3': {
+      title: 'Chapter 3: On Reading Slowly', start: anchor, end: anchor,
+      stops: [Object.assign({}, anchor, { t: at(7, 19, 52) }), Object.assign({}, anchor, { t: at(0, 15, 40) })], t: at(0, 15, 40),
+    },
+    'marks:https://example.org/readings/chapter-2': {
+      title: 'Chapter 2: Habits of Attention', start: anchor, end: anchor, stops: [], t: at(1, 20, 5),
+    },
+    'marks:https://news.example.com/long-article?id=7': {
+      start: null, end: null, stops: [Object.assign({}, anchor, { t: at(9, 9, 15) })], t: at(9, 9, 15),
+    },
+    'marks:https://example.org/empty': { start: null, end: null, stops: [], t: at(0, 1, 0) },
+  });
+
+  // the real popup markup and script
+  const html = await (await fetch('../readings.html', { cache: 'no-store' })).text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  document.head.append(...[...doc.head.querySelectorAll('style')].map((s) => s.cloneNode(true)));
+  for (const img of doc.querySelectorAll('img')) img.setAttribute('src', '../' + img.getAttribute('src'));
+  document.body.append(...[...doc.body.childNodes].filter((n) => n.nodeName !== 'SCRIPT').map((n) => document.importNode(n, true)));
+  const sc = document.createElement('script');
+  sc.src = '../readings.js';
+  document.body.append(sc);
+  if (new URLSearchParams(location.search).has('view')) return;
+
+  const out = [];
+  const ok = (name, cond, extra) => out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : ''));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  await sleep(400);
+  const days = [...document.querySelectorAll('.day')].map((d) => d.textContent);
+  const titles = [...document.querySelectorAll('.entry .title')].map((t) => t.textContent);
+  ok('grouped by day, newest first', days[0] === 'Today' && days[1] === 'Yesterday' && days.length === 3, days);
+  ok('only pages with marks, newest first', titles.length === 3 && titles[0].startsWith('Chapter 3') && titles[1].startsWith('Chapter 2'), titles);
+  ok('untitled page falls back to its address', titles[2] === 'news.example.com/long-article', titles[2]);
+  const first = document.querySelector('.entry');
+  ok('shows last stop time and stop count', /Stopped .* · 2 stops/.test(first.querySelector('.tag.stop').textContent), first.querySelector('.tag.stop').textContent);
+  ok('shows passage tag', !!first.querySelector('.tag.pass'));
+  ok('meter switch reflects setting', document.getElementById('show-meter').checked === true);
+  // filter
+  const s = document.getElementById('search');
+  s.value = 'habits'; s.dispatchEvent(new Event('input'));
+  ok('filter narrows the list', document.querySelectorAll('.entry').length === 1);
+  s.value = ''; s.dispatchEvent(new Event('input'));
+  // open
+  document.querySelectorAll('.entry .open')[1].click();
+  await sleep(50);
+  const msg = __ppLog.filter((m) => m.type === 'open-reading').pop();
+  ok('clicking asks the background to open that page', msg && msg.url === 'https://example.org/readings/chapter-2', msg);
+  // remove takes two clicks
+  const del = document.querySelectorAll('.entry .del')[2];
+  del.click(); await sleep(50);
+  ok('first × click only asks to confirm', del.textContent === 'Remove?' && 'marks:https://news.example.com/long-article?id=7' in __ppStore);
+  del.click(); await sleep(150);
+  ok('second click forgets the page', !('marks:https://news.example.com/long-article?id=7' in __ppStore) && document.querySelectorAll('.entry').length === 2);
+  // meter switch
+  const sw = document.getElementById('show-meter');
+  sw.click(); await sleep(50);
+  ok('meter switch turns the meter off', __ppStore.showMeter === false);
+  // a title from a web page is shown as text, never as HTML
+  await chrome.storage.local.set({ 'marks:https://evil.example/': { title: '<img src=x onerror=alert(1)>Bad', stops: [Object.assign({}, anchor, { t: Date.now() })], t: Date.now() } });
+  await sleep(200);
+  const bad = [...document.querySelectorAll('.entry .title')].find((t) => t.textContent.includes('Bad'));
+  ok('page titles are inserted as text', !!bad && !document.querySelector('#list img') && bad.textContent.startsWith('<img'), bad && bad.textContent);
+  sessionStorage.clear();
+  fetch('/__selftest_result?r=' + encodeURIComponent(out.join('\n'))).catch(() => {});
+})().catch((e) => fetch('/__selftest_result?r=' + encodeURIComponent('ERROR ' + e.stack)));
+</script>
+</body>
+</html>

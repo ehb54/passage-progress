@@ -14,10 +14,13 @@
     runtime: {
       id: 'stub',
       // set window.__ppZoom = { factor, base } before load to fake page zoom
+      // window.__ppPending = { resume: true } fakes "opened from the saved-readings list"
       sendMessage: (m) =>
         m && m.type === 'get-zoom'
           ? Promise.resolve(window.__ppZoom || null)
-          : (window.__ppLog.push(m), Promise.resolve()),
+          : m && m.type === 'get-pending'
+            ? (window.__ppLog.push(m), Promise.resolve(window.__ppPending || null))
+            : (window.__ppLog.push(m), Promise.resolve()),
       onMessage: { addListener: (f) => L.msg.push(f), removeListener() {} },
     },
     storage: {

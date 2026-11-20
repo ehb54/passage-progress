@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resume test page</title>
+<style>body { font: 17px/1.6 Georgia, serif; max-width: 680px; margin: 0 auto; padding: 24px 16px 400px; }</style>
+</head>
+<body>
+<!-- Checks "open from the saved-readings list and jump to where we stopped",
+     on a page whose text arrives 1.5 s after load (like many web apps).
+     Run with: python3 tools/run_selftest.py test/resume-test.html -->
+<div id="content"></div>
+<script>
+  const para = (i) => '[' + i + '] Resume test paragraph, long enough to wrap onto a few lines of the column. '.repeat(3);
+  // stored marks (as the extension would have saved them), without a title, as older versions saved
+  const key = 'marks:' + location.href.split('#')[0];
+  const store = JSON.parse(sessionStorage.getItem('__ppStub') || '{}');
+  if (!sessionStorage.getItem('__resumeSeeded')) {
+    const norm = (s) => s.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const a = (i, t) => ({ path: '#r' + i, snippet: norm(para(i)), textIndex: 0, offset: 0, frac: 0, docFrac: 0.1, t });
+    store.showMeter = true;
+    store[key] = { start: a(5), end: null, stops: [a(20, 1762800000000), a(38, 1763400000000)], t: 1763400000000 };
+    sessionStorage.setItem('__ppStub', JSON.stringify(store));
+    sessionStorage.setItem('__resumeSeeded', '1');
+  }
+  window.__ppPending = { resume: true }; // "opened from the list"
+  setTimeout(() => {
+    const c = document.getElementById('content');
+    for (let i = 1; i <= 60; i++) {
+      const p = document.createElement('p');
+      p.id = 'r' + i;
+      p.textContent = para(i);
+      c.appendChild(p);
+    }
+  }, 1500);
+</script>
+<script src="chrome-stub.js"></script>
+<script src="../content.js"></script>
+<script>
+(async () => {
+  const out = [];
+  const ok = (name, cond, extra) => out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : ''));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // top of the first character's box: where the stop marker is drawn
+  const lineTop = (id) => { const n = document.getElementById(id).firstChild; const r = document.createRange(); r.setStart(n, 0); r.setEnd(n, 1); return r.getClientRects()[0].top; };
+  const settle = async () => { let last = -1; for (let i = 0; i < 60; i++) { await sleep(100); if (scrollY === last && i > 3) break; last = scrollY; } };
+  await sleep(300);
+  ok('page asked for a pending resume', __ppLog.some((m) => m.type === 'get-pending' && m.url === location.href.split('#')[0]));
+  // text arrives at 1.5 s; the anchor resolves on the next tick; then it scrolls
+  await sleep(2500);
+  await settle();
+  ok('opened page jumps to the latest stop once its text loads', Math.abs(lineTop('r38') - 40) < 2, lineTop('r38'));
+  // right-click "Resume where we stopped" sends {type:'resume'}
+  window.scrollTo(0, 0); await sleep(100);
+  __ppSend({ type: 'resume' });
+  await settle();
+  ok('menu Resume jumps to the latest stop', Math.abs(lineTop('r38') - 40) < 2, lineTop('r38'));
+  const badge = __ppLog.filter((m) => m.type === 'badge').pop();
+  ok('menu gets the latest stop time and passage start', badge && badge.stopT === 1763400000000 && badge.hasStart === true, badge && { stopT: badge.stopT, hasStart: badge.hasStart });
+  const saved = JSON.parse(sessionStorage.getItem('__ppStub'))[key];
+  ok('title added to an entry saved without one', saved.title === 'Resume test page', saved.title);
+  ok('backfilling the title keeps the entry date', saved.t === 1763400000000, saved.t);
+  sessionStorage.clear();
+  fetch('/__selftest_result?r=' + encodeURIComponent(out.join('\n'))).catch(() => {});
+})().catch((e) => fetch('/__selftest_result?r=' + encodeURIComponent('ERROR ' + e.stack)));
+</script>
+</body>
+</html>

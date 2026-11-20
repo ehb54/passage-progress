@@ -340,10 +340,13 @@
     schedule();
   }
 
+  // The title is kept so the saved-readings list can name the page.
+  const pageTitle = () => (document.title || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+
   function save() {
     const { start, end, stops } = S.saved;
     if (!start && !end && !stops.length) return store.remove(S.key);
-    store.set({ [S.key]: { start, end, stops, t: Date.now() } });
+    store.set({ [S.key]: { start, end, stops, t: Date.now(), title: pageTitle() } });
     prune();
   }
 
@@ -372,6 +375,42 @@
     if (!l) return;
     const m = metrics();
     scrollToLine(liveY(l, 'start', m), m);
+  }
+
+  // Opened from the saved-readings list: jump to the latest stop (or the
+  // passage start). Pages that build their text late are given time for the
+  // anchor to appear (tick() keeps re-resolving it); after that the saved
+  // page position is used.
+  let resuming = false;
+  async function resumeWhenReady() {
+    if (resuming) return;
+    resuming = true;
+    try {
+      const target = () =>
+        S.live.stops.length ? S.live.stops[S.live.stops.length - 1] : S.live.start || null;
+      for (let i = 0; i < 30; i++) {
+        const l = target();
+        if (!l) return;
+        if (!l.a.path || (l.el && l.el.isConnected)) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      const l = target();
+      if (!l) return;
+      const m = metrics();
+      scrollToLine(liveY(l, 'start', m), m);
+    } finally {
+      resuming = false;
+    }
+  }
+
+  // A tab the list just opened has a resume waiting in the background.
+  function checkPendingResume() {
+    if (!S.saved.start && !S.saved.stops.length) return; // leave it for the real page (e.g. after a redirect)
+    try {
+      chrome.runtime
+        .sendMessage({ type: 'get-pending', url: location.href.split('#')[0] })
+        .then((r) => r && r.resume && resumeWhenReady(), () => {});
+    } catch (_) {}
   }
 
   const fmtTime = (t) => {
@@ -695,15 +734,21 @@
     renderStops(m);
     els.tbar.style.width = main * 100 + '%';
 
-    // Feeds the toolbar badge and the right-click menu readout.
+    // Feeds the toolbar badge and the right-click menu (readout + Resume item).
     const pagePct = pct(page);
     const passPct = pass ? pct(pass.p) : null;
-    const badge = pagePct + '|' + passPct;
+    const st = S.saved.stops;
+    const stopT = st.length ? st[st.length - 1].t : null;
+    const hasStart = !!S.saved.start;
+    const badge = [pagePct, passPct, stopT, hasStart].join('|');
     if (badge !== S.badge) {
       S.badge = badge;
       try {
         chrome.runtime
-          .sendMessage({ type: 'badge', text: pct(main) + '%', passage: !!pass, page: pagePct, pass: passPct })
+          .sendMessage({
+            type: 'badge', text: pct(main) + '%', passage: !!pass,
+            page: pagePct, pass: passPct, stopT, hasStart,
+          })
           .catch(() => {});
       } catch (_) {}
     }
@@ -863,6 +908,7 @@
     else if (msg.type === 'pick') startPick(msg.which);
     else if (msg.type === 'clear') clearMarks();
     else if (msg.type === 'zoom') setZoom(msg);
+    else if (msg.type === 'resume') resumeWhenReady();
     else if (msg.type === 'refresh') {
       S.badge = ''; // re-report progress (tab switched to)
       schedule();
@@ -969,7 +1015,11 @@
       S.pos = v.pillPos || null;
       applyShow();
       applyPos();
-      applySaved(v[S.key]);
+      const entry = v[S.key];
+      applySaved(entry);
+      // entries saved before titles were recorded: add the title, keep the date
+      if (entry && !entry.title && pageTitle()) store.set({ [S.key]: Object.assign({}, entry, { title: pageTitle() }) });
+      checkPendingResume();
     })
     .catch(() => {});
 })();

@@ -7,6 +7,8 @@ A small browser tool for reading long web pages in a group. It shows:
   your progress through just that stretch, with dashed START/END lines on the page.
 - **Where you stopped**: dated "⏸ Stopped Tue, Nov 11, 3:40 PM" markers you leave at the end
   of a meeting. **Resume** jumps straight back to the latest one next time.
+- **Saved readings** (extension): the toolbar button lists every page you've marked, grouped by
+  date. Click one to open it, or switch to it if it's already open, right where you stopped.
 
 The numbers appear in a small draggable meter in the corner of the page and in a thin bar
 along the top edge. With the extension they also appear on the toolbar icon (grey = page,
@@ -20,8 +22,8 @@ The meter keeps the same size when you zoom the page (⌘+ / Ctrl+).
 1. **Chrome Web Store** (one click; coming soon).
 2. **Bookmarklet**, with no install, from the [install page](https://ehb54.github.io/passage-progress/).
    Drag the button to your bookmarks bar. Click it on a page to show the meter, and click again to hide it.
-   Works in Chrome, Edge, Firefox and Safari. It has no toolbar % or right-click menu, and after a
-   page reload you click it again.
+   Works in Chrome, Edge, Firefox and Safari. It has no toolbar %, right-click menu or saved-readings
+   list (each site keeps its own marks), and after a page reload you click it again.
 3. **From this repository** (Developer mode):
    1. Click **Code → Download ZIP** and unzip it somewhere you'll keep it (Chrome loads the
       extension from that folder), or `git clone https://github.com/ehb54/passage-progress.git`.
@@ -42,11 +44,13 @@ The meter keeps the same size when you zoom the page (⌘+ / Ctrl+).
 | …or with the meter | Hover the meter → **Set start** / **Set end**, then click the line (Esc cancels) |
 | …or with the keyboard | ⌥⇧S / ⌥⇧E (Alt+Shift+S / E), then click the line |
 | Leave a dated "stopped here" marker | Hover the meter → **Stopped here**, then click the line. Or right-click it → **Mark where we stopped (dated)**, or ⌥⇧X |
-| Go back to where you stopped | Hover the meter → **Resume** |
+| Go back to where you stopped | Right-click → **Resume where we stopped (date)**, or hover the meter → **Resume**. You can assign a key to "Resume" at `chrome://extensions/shortcuts` |
+| Reopen a page you were reading | Toolbar button → click the page in **Saved readings** (also: right-click → **Saved readings…** for a full tab) |
+| Forget a saved page | **Saved readings** → hover the page → **×**, then **Remove?** |
 | Delete a stopped-here marker | Click the **×** on its label |
 | Jump to the passage start | Hover the meter → **Go to start** |
 | Remove the start/end marks | Hover the meter → **Clear**, or right-click → **Clear passage marks** (stop markers stay) |
-| Hide/show the meter | Toolbar icon, ⌥⇧P, or hover the meter → **✕**. Bookmarklet: click the bookmark |
+| Hide/show the meter | ⌥⇧P, the **Meter on pages** switch in the toolbar popup, or hover the meter → **✕**. Bookmarklet: click the bookmark |
 | Move the meter | Drag it. Double-click to send it back to the corner |
 
 Notes:
@@ -83,7 +87,7 @@ page you read. Full policy: https://ehb54.github.io/passage-progress/privacy.htm
 
 ## Files
 
-- `manifest.json`, `background.js`, `content.js`, `icons/`: the extension (Manifest V3)
+- `manifest.json`, `background.js`, `content.js`, `readings.html`/`readings.js` (saved-readings popup), `icons/`: the extension (Manifest V3)
 - `bookmarklet/shim.js`: stand-ins for the extension APIs used by the bookmarklet build
 - `site/`: install page and privacy policy templates
 - `docs/`: **generated** GitHub Pages site (install page with the bookmarklet link baked in)
@@ -92,7 +96,7 @@ page you read. Full policy: https://ehb54.github.io/passage-progress/privacy.htm
   upload). Run it after changing `content.js` and commit `docs/`
 - `tools/make_icons.py`: regenerates the icons
 - `tools/run_selftest.py`: runs a test page in headless Chrome and prints its results, e.g.
-  `python3 tools/run_selftest.py test/selftest.html` (also `test/bookmarklet-strict.html`,
-  `test/bookmarklet-href.html`)
+  `python3 tools/run_selftest.py test/selftest.html` (also `test/resume-test.html`,
+  `test/readings-harness.html`, `test/bookmarklet-strict.html`, `test/bookmarklet-href.html`)
 - `test/`: test pages. `chrome-stub.js` fakes the extension APIs, so `test.html` and `inner.html`
   can be opened by hand from `python3 -m http.server`

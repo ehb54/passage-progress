@@ -16,7 +16,7 @@ Upload file: `dist/passage-progress-<version>.zip` (run `python3 tools/build.py`
 
 ## 2. Upload (you)
 
-Dashboard → **New item** → upload `dist/passage-progress-1.1.0.zip`.
+Dashboard → **New item** → upload `dist/passage-progress-<version>.zip` (currently 1.2.0).
 
 ## 3. Store listing tab
 
@@ -42,6 +42,7 @@ Reading a long web page together? Passage Progress shows everyone where you are.
 • Page %: how far through the page you've scrolled, and roughly how many screens are left.
 • Passage %: mark where today's passage starts and ends (right-click a line, or use the meter), and see progress through just that part, with START/END lines on the page.
 • Pick up where you stopped: before you leave, click "Stopped here" on the line where you ended. It leaves a dated marker, e.g. "Stopped Tue, Nov 11, 3:40 PM". Next time, "Resume" jumps straight back. Each meeting can leave its own marker.
+• Saved readings: the toolbar button lists every page you've marked, grouped by date. Click one to reopen it right where you stopped, even if the page isn't open. Or right-click any page → "Resume where we stopped".
 • Your progress is shown in a small meter you can drag anywhere, on the toolbar icon, and at the top of the right-click menu.
 • Zoom in to make the text bigger (Ctrl/Cmd +). The meter stays the same small size.
 • Marks are tied to the text, so they stay on the right line when the page reflows, and they come back when you revisit the page.
@@ -63,7 +64,7 @@ Shows the user's reading progress through the current web page, and through a pa
 
 | Permission | Justification |
 | --- | --- |
-| `storage` | Saves the passage marks, dated "stopped here" markers and meter position the user sets, locally in the browser, so they are restored when the user returns to the page. |
+| `storage` | Saves the passage marks, dated "stopped here" markers (with the page's address and title, for the saved-readings list) and meter position the user sets, locally in the browser, so they are restored when the user returns to the page. |
 | `contextMenus` | Adds right-click items to mark the passage start/end and where reading stopped, and shows the current progress percentage in the menu. |
 | `scripting` | When the extension is installed or updated, adds the progress meter to tabs that are already open, so the user doesn't have to reload them. |
 | Host permission (`<all_urls>`) | The meter has to appear on whatever page the user is reading. The content script reads the page's scroll position and text layout locally to compute progress. No page data is collected or transmitted. |

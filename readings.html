@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saved readings · Passage Progress</title>
+<link rel="icon" href="icons/icon32.png">
+<style>
+  :root {
+    --bg: #fbfaf7; --fg: #1d2127; --muted: #626a75; --card: #ffffff; --line: #e7e3da; --hover: #f3f1ec;
+    --accent: #15803d; --stop: #b45309; --stop-bg: #fef3c7; --pass-bg: #dcfce7; --danger: #b91c1c;
+    --focus: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131519; --fg: #e7e8ea; --muted: #9aa2ad; --card: #1b1e24; --line: #2b2f37; --hover: #23272e;
+      --accent: #4ade80; --stop: #fbbf24; --stop-bg: #3a2a0c; --pass-bg: #0f2e1b; --danger: #f87171;
+      --focus: #8ab4ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 28px 16px 40px; }
+  body.popup { width: 380px; }
+  body.popup main { padding: 12px 12px 10px; }
+
+  header { display: flex; align-items: center; gap: 10px; }
+  header img { width: 28px; height: 28px; }
+  h1 { font-size: 17px; margin: 0; flex: 1; }
+  body:not(.popup) h1 { font-size: 22px; }
+  .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; user-select: none; }
+  .switch input { accent-color: var(--accent); margin: 0; }
+
+  .search {
+    width: 100%; margin: 12px 0 6px; padding: 7px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit;
+  }
+  .search:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
+
+  body.popup #list { max-height: 430px; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+  .day { font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin: 14px 2px 4px; }
+  .entry { position: relative; }
+  .open {
+    all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer;
+    padding: 8px 34px 8px 10px; border-radius: 9px;
+  }
+  .open:hover { background: var(--hover); }
+  .open:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .title { font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .meta { font-size: 12px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .tag { font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+  .tag.stop { color: var(--stop); background: var(--stop-bg); }
+  .tag.pass { color: var(--accent); background: var(--pass-bg); }
+  .del {
+    all: unset; position: absolute; top: 7px; right: 6px; cursor: pointer; font-size: 15px; line-height: 1;
+    color: var(--muted); padding: 4px 6px; border-radius: 6px; opacity: 0;
+  }
+  .entry:hover .del, .del:focus-visible, .del.confirm { opacity: 1; }
+  .del:hover { background: var(--hover); color: var(--danger); }
+  .del:focus-visible { outline: 2px solid var(--focus); }
+  .del.confirm { font-size: 12px; font-weight: 650; color: #fff; background: var(--danger); }
+
+  .empty { color: var(--muted); padding: 18px 4px 8px; }
+  footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  footer span { flex: 1; }
+  footer a { color: var(--muted); }
+  body:not(.popup) #open-tab { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icons/icon48.png" alt="">
+    <h1>Saved readings</h1>
+    <label class="switch" title="Show the progress meter on web pages (Alt+Shift+P)">
+      <input type="checkbox" id="show-meter"> Meter on pages
+    </label>
+  </header>
+  <input class="search" id="search" type="search" placeholder="Filter by title or address" aria-label="Filter saved pages">
+  <div id="list"></div>
+  <footer>
+    <span>Click a page to open it where you stopped.</span>
+    <a href="#" id="open-tab">Open as a tab</a>
+  </footer>
+</main>
+<script src="readings.js"></script>
+</body>
+</html>
